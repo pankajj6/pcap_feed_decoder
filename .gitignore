@@ -1,0 +1,20 @@
+# Build artifacts
+*.o
+*.a
+*.so
+
+# Executables
+exec
+gen
+ge
+
+# Data files
+data/input/*
+data/generated/*
+
+# Keep directory structure
+!data/input/.gitkeep
+!data/generated/.gitkeep
+
+# macOS
+.DS_Store
