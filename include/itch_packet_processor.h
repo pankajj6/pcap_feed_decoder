@@ -4,6 +4,8 @@
 #include <cstring> // for memcmp 
 #include "nasdaq_itch50.h"
 #include "base_lob_engine.h" //
+#include "market_state.h"
+#include "events.h"
 #include <bit>
 #include <iostream>
 
@@ -23,6 +25,11 @@ void log_msg(uint64_t count , T& msg , bool verbose){
     }
 }
 
+
+enum class DecodeMode: uint8_t {
+  Direct = 0 ,
+  MarketState = 1 
+} ;
 
 
 #pragma pack(push , 1)
@@ -48,6 +55,7 @@ struct char10_byte{
 } ;
 
 
+
 struct ParserState {
   // engine
   Engine<EngineMode::Parser> engine ;
@@ -64,6 +72,10 @@ struct ParserState {
   // debug mode flag
   bool verbose = false ;
   
+  // parser decode mode 
+  DecodeMode Mode = DecodeMode::Direct ;
+  
+  // features
   uint64_t total_packets = 0 ;
   uint64_t total_messages = 0 ;
   uint64_t adds = 0 ;
@@ -88,35 +100,13 @@ struct ParserState {
 
 #pragma pack(pop)
 
-  // not required , as hardware already checks corrrupt pkts and doesnt write it in pcap file. ()
-  // type<seq_num> corrupt_pkts ; // store last 10 corrupt pkts , so to maintain balance of buffering when we know corrup pkt will never come in future. it was skipped already .// maybe a set.
-  
-  
-  
-  //bool is_expected_seq_corrupt(const uint64_t& expected_seq){
-
-  //  if( corrupt_pkts.find(expected_seq) != corrupt_pkts.end() ) // if corrupt_pkts contains it . means corrupt seq num . 
-  //  {
-  //    return true ; // seq num is marked corrupt.
-  //  }
-  //  return false ;
-  //}
-  
-  
-  //uint64_t next_avaiable_expected_seq(const uint64_t& expected_seq){ // 
-    
-  //  uint64_t expected = 1 + expected_seq ; // new next avaiable
-  //  while( is_expected_seq_corrupt(expected) ){
-  //      expected++; // increment and check again until right one
-  //   }
-  //  return expected ;   
-  //}
-
-
 uint64_t process_packet(void* pkt_ptr , ParserState& ps){
     
     // parser engine
     auto& parser_engine = ps.engine ;
+    
+    // DecodeMode 
+    auto Mode = ps.Mode ; 
     
     // ptr to pkt header
     char* ptr = static_cast<char*>(pkt_ptr) ;
@@ -159,7 +149,12 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
       memcpy(&msg_type , ptr, 1);
       
       // 
-      int var = 1 ; 
+      int var = 1 ;
+      
+      // precalculate timestamp fixed offset = 5 .
+      uint64_t time_ns = 0 ;
+      std::memcpy(&time_ns, ptr+5, sizeof(uint64_t));
+      time_ns = std::byteswap(time_ns) >> 16 ;
       
       switch(msg_type){
       
@@ -176,7 +171,6 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
           //uint64_t stock ;
           //std::memcpy(&stock , &msg.stock , sizeof(stock)) ;
           //stock = std::byteswap(stock) ;
-          
           
           std::memcpy(&parser_engine.books[msg.stock_locate].stock , &msg.stock , 8  ) ;
           
@@ -201,7 +195,15 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
           msg.shares = std::byteswap(msg.shares) ;
           char side = msg.buy_sell_indicator ;
           
-          parser_engine.itch_add_order(msg.stock_locate, msg.order_reference_number , msg.price, msg.shares, side);
+          if (Mode == DecodeMode::Direct){
+            parser_engine.itch_add_order(msg.stock_locate, msg.order_reference_number , msg.price, msg.shares, side);
+          }
+          else {
+            OrderAdd itch = {msg.order_reference_number, msg.price, msg.shares, side} ;
+            Event event = {time_ns, 0 , 0 , EventType::ITCH, MsgType::OrderAdd, msg.stock_locate, {itch} } ; 
+            reconstruct_market_state<EngineMode::Parser>(parser_engine, event) ;
+          }
+          
           ptr += msg_len ;
           msg_count-- ;
           
@@ -223,7 +225,15 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
           msg.shares = std::byteswap(msg.shares) ;
           char side = msg.buy_sell_indicator ;
           
-          parser_engine.itch_add_order( msg.stock_locate , msg.order_reference_number , msg.price, msg.shares , side);
+          if (Mode == DecodeMode::Direct){
+            parser_engine.itch_add_order( msg.stock_locate , msg.order_reference_number , msg.price, msg.shares , side);
+          }
+          else {
+            OrderAdd itch = {msg.order_reference_number, msg.price, msg.shares, side} ;
+            Event event = {time_ns, 0 , 0 , EventType::ITCH, MsgType::OrderAdd, msg.stock_locate, {itch} } ; 
+            reconstruct_market_state<EngineMode::Parser>(parser_engine, event) ;
+          }
+          
           ptr += msg_len ;
           msg_count-- ;
           
@@ -245,7 +255,15 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
           msg.order_reference_number = std::byteswap(msg.order_reference_number) ;
           msg.executed_shares = std::byteswap(msg.executed_shares) ;
           
-          parser_engine.itch_execute_order(msg.stock_locate , msg.order_reference_number , msg.executed_shares);
+          if (Mode == DecodeMode::Direct){
+            parser_engine.itch_execute_order(msg.stock_locate , msg.order_reference_number , msg.executed_shares);
+          }
+          else {
+            OrderExecuted itch = {msg.order_reference_number, msg.executed_shares} ;
+            Event event = {time_ns, 0 , 0 , EventType::ITCH, MsgType::OrderExec, msg.stock_locate, {itch} } ; 
+            reconstruct_market_state<EngineMode::Parser>(parser_engine, event) ;
+          }
+          
           ptr += msg_len ;
           msg_count-- ;
           
@@ -272,7 +290,15 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
           msg.order_reference_number = std::byteswap(msg.order_reference_number) ;
           msg.cancelled_shares = std::byteswap(msg.cancelled_shares) ;
           
-          parser_engine.itch_reduce_order(msg.stock_locate, msg.order_reference_number , msg.cancelled_shares);
+          if (Mode == DecodeMode::Direct){
+            parser_engine.itch_reduce_order(msg.stock_locate, msg.order_reference_number , msg.cancelled_shares);
+          }
+          else {
+            OrderCancel itch = {msg.order_reference_number, msg.cancelled_shares} ;
+            Event event = {time_ns, 0 , 0 , EventType::ITCH, MsgType::OrderCancel, msg.stock_locate, {itch} } ; 
+            reconstruct_market_state<EngineMode::Parser>(parser_engine, event) ;
+          }
+          
           ptr += msg_len ;
           msg_count-- ;
           
@@ -291,7 +317,20 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
           msg.stock_locate = std::byteswap(msg.stock_locate) ;
           msg.order_reference_number = std::byteswap(msg.order_reference_number) ;
           
-          parser_engine.itch_delete_order(msg.stock_locate, msg.order_reference_number);
+          if (Mode == DecodeMode::Direct){
+            parser_engine.itch_delete_order(msg.stock_locate, msg.order_reference_number);
+          }
+          else {
+            // get total shares for full cancel (delete). 
+            auto idx = find_order_index(parser_engine, msg.order_reference_number) ;
+            auto& ord = parser_engine.pool[idx] ;
+            auto shares = ord.shares ;
+            
+            OrderCancel itch = {msg.order_reference_number, shares } ;
+            Event event = {time_ns, 0 , 0 , EventType::ITCH, MsgType::OrderCancel, msg.stock_locate, {itch} } ; 
+            reconstruct_market_state<EngineMode::Parser>(parser_engine, event) ;
+          }
+          
           ptr += msg_len ;
           msg_count-- ;
           
@@ -314,7 +353,15 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
           msg.price = std::byteswap(msg.price) ;
           msg.shares = std::byteswap(msg.shares) ;
           
-          parser_engine.itch_replace_order(msg.stock_locate , msg.original_order_reference_number , msg.new_order_reference_number , msg.price , msg.shares );
+          if (Mode == DecodeMode::Direct){
+            parser_engine.itch_replace_order(msg.stock_locate , msg.original_order_reference_number , msg.new_order_reference_number , msg.price , msg.shares );
+          }
+          else {  
+            OrderReplace itch = {msg.original_order_reference_number, msg.new_order_reference_number, msg.price, msg.shares } ;
+            Event event = {time_ns, 0 , 0 , EventType::ITCH, MsgType::OrderReplace, msg.stock_locate, {itch} } ; 
+            reconstruct_market_state<EngineMode::Parser>(parser_engine, event) ;
+          }
+          
           ptr += msg_len ;
           msg_count-- ;
           

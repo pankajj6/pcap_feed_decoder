@@ -26,7 +26,7 @@ constexpr size_t MAX_BUFFER_SIZE = 20; // even 50 might be okay
 struct packet_header{ // 16 bytes
 
   uint32_t epoch_sec  = 1782259200 ; // 24 june 2026  - 12 am.
-  uint32_t epoch_nsec = 0 ; // nsecs or microseconds.
+  uint32_t epoch_nsec = 0 ; // ns or microseconds.
   uint32_t captured_pkt_len ; // size of Ethernet + IP + UDP + MOLD + ITCH
   uint32_t original_pkt_len ; 
 
@@ -72,25 +72,11 @@ struct network_header_vlan{ // 62 bytes
 #pragma pack(pop)
 
 
-//void _custom_bswap10_bytes(char* session){
-
-//  uint64_t var1 ; 
-//  std::memcpy(&var1, session , sizeof(uint64_t)) ; // b9 (msb) to b2 .
-  
-//  uint16_t var2 ; 
-//  std::memcpy(&var2, session + 8 , sizeof(uint16_t)) ; // b1 to b0 (lsb)
-  
-//  var1 = std::byteswap(var1) ; // b2 to b9 (in stack , low to high addr) // in reg , it is reverse , as we know regs are bit 63 in left. to bit 0 in right.
-//  var2 = std::byteswap(var2) ; // b0 to b1 
-  
-//  std::memcpy(session, &var2 , 2); // b0 to b1
-//  std::memcpy(session + 2 , &var1 , 8); // b2 to b9 . done
-
-//}
-
 // debug mode
 bool verbose = false ; 
 
+// parser decode mode
+DecodeMode Mode = DecodeMode::Direct ;
 
 
 int main(int argc , char* argv[]){
@@ -105,6 +91,9 @@ int main(int argc , char* argv[]){
   for (int i=0 ; i < argc ; i++){
     if (std::string(argv[i]) == "--verbose"){
       verbose = true ;
+    }
+    if (std::string(argv[i]) == "--market-state"){
+      Mode = DecodeMode::MarketState ;
     }
   }
 
@@ -134,10 +123,6 @@ int main(int argc , char* argv[]){
    
   char* pcap_ptr = static_cast<char*>(in_pcap) ;
   char* pcap_end = pcap_ptr + file_size ;
-  
-  
-  // global header 
-  // global_pcap* g = reinterpret_cast<global_pcap*>(pcap_ptr) ; //global pcap header , is tightly packed struct. check def.
   bool need_swap ; 
   
   // check endianess
@@ -157,13 +142,12 @@ int main(int argc , char* argv[]){
   ParserState ps ;
   // set flag
   ps.verbose = verbose ;
+  ps.Mode = Mode ;
+  
   auto& buffer = ps.out_of_order_buffer ; 
   
   // Ethernet length : with vlan - 18 byte . general 14 bytes
   uint8_t eth_len = (ptr[16+12] == 0x81 && ptr[16+12+1] == 0x00) ? 18 : 14 ; // 4 byte vlan if present.
-   
-  //network_header_vlan* net_pkt_vlan ; = reinterpret_cast<network_header_vlan*>(pcap_ptr+16) ;
-  //network_header net_pkt
   
   auto& expected_seq = ps.expected_seq ;
   
@@ -192,52 +176,31 @@ int main(int argc , char* argv[]){
     // session id :
     char10_byte session_id ;
     std::memcpy(&session_id.data , ptr+seq_offset-10 , 10) ;
-    
-    // string curr_pkt_session = std::string(session,10) ; // look how to avoid this bs..................................................... heap alloc.
-    
+  
     char10_byte curr_pkt_session_id = session_id ;
-
-
-// after reading , it is clear that most times the pkts wrrtien in pcaps are clean , not corrupt , they are already discarded by hardware who runs the checksum checks themselves.
-
-    // check if pkt corrupt 
-
-    //if( is_corrupt( ptr, ip_check_sum , udp_check_sum ) == true){ // .................................................................................
-      
-    //  pcap_ptr += (cap_pkt_len + 16) ; // network + pkt header
-      
-    //  corrupt_pkts.add(seq_num) ; // refactor here . remove old if no space . total same size as or maybe half or something of buffer size.....................
-      
-    //  continue ; // skip this packet
-    //}
-    
-    // session checks
-    
     
     // session mismatch
     if (curr_pkt_session_id != ps.prev_pkt_session_id ){
-      // curr session in dead session 
+      
+      // check current in dead session 
       if (curr_pkt_session_id.present_in(ps.dead_sessions) ){
         // skip this pkt. old dead session.
         ptr += (16 + cap_pkt_len) ;
         continue ;
       }
-      //session reset to new session.
+      // reset session to new session.
       else 
       { // push previous session in dead
         ps.dead_sessions.push_back(ps.prev_pkt_session_id) ; 
         
-        // process previous session's buffer completely .so as to not carry any old and new session confusion in comparison of seq nums etc in future.
+        // process previous session's buffer completely.
         while (!buffer.empty()){
           auto it = buffer.begin() ;
-          // pass address of pkt of front seq number
+          // process front packet 
           process_packet(it->second, ps) ;
-          // remove this entry
+          // remove entry
           buffer.erase(it) ; 
-        } // after this it is empty. clean
-        
-        
-        // corrupt_pkts.clear() ; // no need of old session now.
+        } // clean buffer.
         
         // update session
         ps.prev_pkt_session_id = curr_pkt_session_id ;  
@@ -253,22 +216,21 @@ int main(int argc , char* argv[]){
     
     if (seq_num == expected_seq){
       // process packet
-      auto offset = process_packet(ptr, ps) ; // later could internal file write.
-      ptr += offset ; // (16 + cap_pkt_len) ; // update ptr after processing ( and in cases, when pkt added to buffer (below) )
+      auto offset = process_packet(ptr, ps) ; 
+      ptr += offset ; // 16 + cap_pkt_len
       
       // increment exp seq
-      expected_seq++ ; // = ps.next_avaiable_expected_seq(expected_seq) ; // update to non corrupt num
+      expected_seq++ ;
       
-      // process all consecutive pkts if are in buffer
+      // process all consecutive packets if are in buffer
       while (buffer.find(expected_seq) != buffer.end() ) // if it is in buffer . process it here directly. 
       {
-        process_packet(buffer[expected_seq], ps) ; // pass address directly. dont store offset . we doing it back of file. ptr is forward then this . as buffer already contained this expected one.
+        process_packet(buffer[expected_seq], ps) ; // dont store offset . we doing it back of file. ptr is forward then this . as buffer already contained this expected one.
         
         buffer.erase(expected_seq) ; // clear seq number from buffer.
         expected_seq++; // = ps.next_avaiable_expected_seq(expected_seq) ; // update to non corrupt num
       }
-      // loop breaks when expected is not in buffer.
-      continue ; // go back to normal while loop , maybe we will find it forward in the file.
+      continue ; // to while loop , might find it forward in file.
   
     }
     
