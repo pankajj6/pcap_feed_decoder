@@ -82,11 +82,12 @@ uint64_t total_packets = 0 ; // count progress
 uint64_t total_itch = 0 ;
 
 
-constexpr size_t MAX_PKTS_TO_WRITE = 5000 ;
-constexpr size_t MAX_PCAP_SIZE = 10000000 ; // 10 mb 
+
+size_t max_packets = 5000 ; // default
+constexpr size_t PCAP_GLOBAL_HEADER_SIZE = 24;
+constexpr size_t PCAP_PACKET_HEADER_SIZE = 16;
 
 constexpr size_t PACKET_SIZE = 1500 ; // MTU limit
-
 
 // Ethernet - IP - UDP - MOLD - 2 len - ITCH
 
@@ -94,15 +95,30 @@ constexpr size_t PACKET_SIZE = 1500 ; // MTU limit
 int main(int argc, char* argv[]){
 
   
-  if (argc != 3){
+  if (argc < 3){
     std::cerr << "Usage: pcap_generator <input_binary> <output_pcap>\n";
     return 1 ;
   }
- 
+  
+
+  if (argc > 3){
+    try {
+      uint64_t value = std::stoull(argv[3]) ;
+      max_packets = static_cast<size_t>(value) ;
+    }
+    catch( const std::exception& e){
+      std::cerr << "Error: Invalid number format for max_packets.\n" ;
+      return 1 ;
+    }
+  }
+
   // file names:
   const char* input = argv[1] ;
   const char* output_path = argv[2] ;
   
+  const size_t max_pcap_size = 
+    PCAP_GLOBAL_HEADER_SIZE +
+    (max_packets * (PACKET_SIZE + PCAP_PACKET_HEADER_SIZE) ) ;
   
   // output file mmap setup : 
   auto fd1 = open( output_path , O_RDWR | O_CREAT | O_TRUNC , 0644) ;
@@ -113,7 +129,7 @@ int main(int argc, char* argv[]){
     return 1;
   }
   
-  size_t size1 = MAX_PCAP_SIZE ; // 10 gb atleast (by default)
+  size_t size1 = max_pcap_size ;
   
   if (ftruncate(fd1, size1) == -1) {
       perror("Error resizing file");
@@ -132,7 +148,7 @@ int main(int argc, char* argv[]){
   
   // input file mmap setup :
 
-  auto fd = open( input , O_RDONLY);
+  auto fd = open(input , O_RDONLY);
   
   if(fd == -1){
     cerr << "file open failed" << endl ;
@@ -167,35 +183,38 @@ int main(int argc, char* argv[]){
  
   while(inp_ptr < end_ptr){
   
-    if(total_packets > MAX_PKTS_TO_WRITE){
+    if(total_packets >= max_packets){
       break ;
-    }
-  
-    if(total_packets %10 ==0){
-      cout << "Total Packets Written : " << total_packets << std::endl ;
-      cout << "Total itch    Written : " << total_itch << std::endl ;
     }
      
     // memcpy(ptr to destination , ptr to src , size to copy from soruce to destination );
     
-    char buffer[PACKET_SIZE] ; // data packet
+    char buffer[PACKET_SIZE] = {}; // data packet
     int payload_offset = 62 ; // leave space for ether/ip/udp/mold (14+20+8+20)
     int total_payload_size = 0 ;
     uint16_t msg_count = 0 ;
     
     while(true){
      
-      uint16_t msg_len ; 
-      memcpy(&msg_len, inp_ptr , sizeof(msg_len) );
-      msg_len = std::byteswap(msg_len); 
-      
-      int data_len = 2 + msg_len ;
-      
-      if( (payload_offset + data_len) >= PACKET_SIZE ){
+      if (inp_ptr + sizeof(uint16_t) > end_ptr){
         break ;
       }
       
-      memcpy( &buffer[payload_offset] , inp_ptr , data_len);
+      uint16_t msg_len ; 
+      std::memcpy(&msg_len, inp_ptr , sizeof(msg_len) ) ;
+      msg_len = std::byteswap(msg_len) ; 
+      
+      int data_len = 2 + msg_len ;
+      
+      if (inp_ptr + data_len > end_ptr){
+        break ;
+      }
+      
+      if( (payload_offset + data_len) > PACKET_SIZE ){
+        break ;
+      }
+      
+      std::memcpy(&buffer[payload_offset] , inp_ptr , data_len);
       
       payload_offset += data_len ;
       inp_ptr += data_len ;
@@ -233,6 +252,11 @@ int main(int argc, char* argv[]){
     
     total_packets++;
     total_itch += msg_count ;
+    
+    if(total_packets %10 ==0){
+      cout << "Total Packets Written : " << total_packets << std::endl ;
+      cout << "Total itch    Written : " << total_itch << std::endl ;
+    }
      
   }
      
