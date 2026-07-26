@@ -14,9 +14,9 @@ limit order book using **BaseLOBEngine**.
 NASDAQ publicly distributes historical **ITCH binary files**, not the original
 network captures.
 
-Those files contain a stream of ITCH messages without the surrounding
-Ethernet, IPv4 and UDP packet headers that would normally be present on the
-wire.
+Those files contain a stream of length-prefixed ITCH messages without the
+surrounding Ethernet, IPv4, UDP and MoldUDP64 framing that would normally be
+present in a network capture.
 
 This repository therefore provides **pcap_generator**, which reconstructs
 synthetic PCAP captures from the published ITCH binary files. These generated
@@ -118,10 +118,10 @@ src/
 Generate a PCAP capture from a NASDAQ TotalView-ITCH 5.0 binary file.
 
 ```bash
-./pcap_generator <input_binary> <output_pcap>
+./pcap_generator <input_binary> <output_pcap> [max_packets]
 ```
 
-Example:
+Example using the default packet limit:
 
 ```bash
 ./pcap_generator \
@@ -129,9 +129,26 @@ Example:
     data/generated/01302020.pcap
 ```
 
-The generator currently creates a compact PCAP suitable for testing and
-development. The maximum number of packets written is configurable within the
-generator source.
+By default, the generator writes up to **5000 packets**. A different packet
+limit can be supplied as the optional third argument:
+
+```bash
+./pcap_generator \
+    data/input/01302020.NASDAQ_ITCH50 \
+    data/generated/01302020.pcap \
+    100000
+```
+
+The output allocation is derived automatically from the requested packet
+limit, the PCAP global header, per-packet headers, and the maximum packet size.
+The generated file is truncated to the actual number of bytes written once
+generation completes.
+
+Larger packet limits can produce correspondingly larger PCAP files. The
+default is intended to provide a compact capture for testing and development.
+
+If a PCAP capture is already available, the generation step is unnecessary
+and the file can be passed directly to `pcap_decoder`.
 
 ---
 
