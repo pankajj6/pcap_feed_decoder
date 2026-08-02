@@ -18,3 +18,7 @@ data/generated/*
 
 # macOS
 .DS_Store
+
+
+# local benchmark scripts
+.venv/

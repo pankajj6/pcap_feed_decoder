@@ -10,8 +10,8 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
-
-
+#include <chrono>
+#include <fstream>
 #include <flat_map> 
 
 #include "itch_packet_processor.h" // rename it 
@@ -140,6 +140,10 @@ int main(int argc , char* argv[]){
   
   // parser state 
   ParserState ps ;
+  #ifdef MEASURE_LATENCY
+  ps.message_latency_ns.reserve(50000000); // rough estimate number , for initial benchmark
+  #endif
+  
   // set flag
   ps.verbose = verbose ;
   ps.Mode = Mode ;
@@ -150,6 +154,8 @@ int main(int argc , char* argv[]){
   uint8_t eth_len = (ptr[16+12] == 0x81 && ptr[16+12+1] == 0x00) ? 18 : 14 ; // 4 byte vlan if present.
   
   auto& expected_seq = ps.expected_seq ;
+  
+  auto start = std::chrono::high_resolution_clock::now() ;
   
   while (ptr + sizeof(packet_header) <= pcap_end){
   
@@ -285,8 +291,42 @@ int main(int argc , char* argv[]){
     //}
   
   }
+  
+  auto end = std::chrono::high_resolution_clock::now() ;
 
+  std::chrono::duration<double> d = end - start ;
+  
+  if (d.count() > 0.0){
+    std::cout << "Packets/sec : " << ( ps.total_packets / d.count() ) << std::endl ;
+    std::cout << "itch Messages/sec : " << ( ps.total_messages / d.count() ) << std::endl ;
+  }
+  else {
+    std::cout << "d is 0" << std::endl ;
+  }
+  
   ps.print() ; 
+  
+  #ifdef MEASURE_LATENCY
+  
+  auto& lat = ps.message_latency_ns;
+
+  std::sort(lat.begin(), lat.end());
+
+  size_t n = lat.size();
+
+  std::cout << "Latency p50 : "
+            << lat[n * 50 / 100] << " ns\n";
+
+  std::cout << "Latency p95 : "
+            << lat[n * 95 / 100] << " ns\n";
+
+  std::cout << "Latency p99 : "
+            << lat[n * 99 / 100] << " ns\n";
+
+  std::cout << "Latency max : "
+            << lat.back() << " ns\n";
+  
+  #endif
   
   if (munmap(in_pcap , file_size) == -1){
     cerr << "Error unmapping" << endl;

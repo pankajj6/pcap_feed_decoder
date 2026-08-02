@@ -9,6 +9,10 @@
 #include <bit>
 #include <iostream>
 
+#include <chrono>
+#include <algorithm>
+#include <vector>
+
 using namespace std;
 
 void read_data(void* var, void* src_ptr , size_t s){
@@ -56,27 +60,19 @@ struct char10_byte{
 
 
 
-struct ParserState {
-  // engine
-  Engine<EngineMode::Parser> engine ;
+struct alignas(64) ParserState {
+  
   // expected pkt seq number
   uint64_t expected_seq = 1 ; 
   // last pkt session id
   char10_byte prev_pkt_session_id ; 
-  
-  std::vector<char10_byte> dead_sessions ;
-  
-  // stores sequence number : pointer to packet header
-  std::flat_map<uint64_t , char*> out_of_order_buffer ; 
-  
   // debug mode flag
   bool verbose = false ;
-  
   // parser decode mode 
   DecodeMode Mode = DecodeMode::Direct ;
   
   // features
-  uint64_t total_packets = 0 ;
+  alignas(64) uint64_t total_packets = 0 ;
   uint64_t total_messages = 0 ;
   uint64_t adds = 0 ;
   uint64_t executes = 0 ;
@@ -85,6 +81,19 @@ struct ParserState {
   uint64_t replaces = 0 ;
   uint64_t out_of_order_drops = 0 ;
   
+  
+  std::vector<char10_byte> dead_sessions ;
+  
+  // stores sequence number : pointer to packet header
+  std::flat_map<uint64_t , char*> out_of_order_buffer ; 
+  
+  #ifdef MEASURE_LATENCY
+  std::vector<uint64_t> message_latency_ns ;
+  #endif
+  
+  // engine
+  Engine<EngineMode::Parser> engine ;
+
   void print(){
     std::cout << "total packets    : " << total_packets << std::endl ;
     std::cout << "total messages   : " << total_messages << std::endl ;
@@ -132,8 +141,14 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
     std::memcpy( &msg_count, ptr , 2) ;
     
     msg_count = std::byteswap(msg_count) ;
-    ptr += 2;
+    ptr += 2;  
     
+    #ifdef MEASURE_LATENCY
+    auto t0 = std::chrono::steady_clock::now() ; 
+    auto total_msg = msg_count ;
+    #endif
+    
+    // process . 
     while (msg_count != 0 ){
       // message length
       std::memcpy(&msg_len, ptr , 2);
@@ -155,11 +170,11 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
       uint64_t time_ns = 0 ;
       std::memcpy(&time_ns, ptr+5, sizeof(uint64_t));
       time_ns = std::byteswap(time_ns) >> 16 ;
-      
+    
       switch(msg_type){
       
 
-        case 'R': // stock directory
+        case 'R': { // stock directory
           
           // 
           StockDirectory msg;
@@ -181,6 +196,7 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
           ptr += msg_len ;
           msg_count-- ;
           continue ;
+        }
           
            // some logic to store the stock directory : tracking num.
         
@@ -411,10 +427,15 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
         
       
       }
-      
-    
+  
     }
     
+  #ifdef MEASURE_LATENCY
+  auto t1 = std::chrono::steady_clock::now();
+  auto t = (std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count())/total_msg ;
+  ps.message_latency_ns.push_back(t);
+  #endif
+  
   ps.total_packets +=1 ;
     
   return (16 + pkt_len) ;
