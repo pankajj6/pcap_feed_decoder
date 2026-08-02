@@ -1,83 +1,164 @@
 # PCAP Feed Decoder
 
-A deterministic PCAP market data decoder for **NASDAQ TotalView-ITCH 5.0**
-packet captures with integrated limit order book reconstruction.
+A deterministic PCAP decoder for **NASDAQ TotalView-ITCH 5.0** focused on
+Level-3 limit order book reconstruction.
 
-The project provides utilities for generating PCAP test captures from the
-public NASDAQ ITCH binary files and for reconstructing the corresponding
-limit order book using **BaseLOBEngine**.
+The repository also provides a PCAP generator for constructing reproducible
+benchmark datasets from the publicly available NASDAQ ITCH binary files.
+
+---
+
+# Why this Project
+
+Most publicly available NASDAQ historical datasets are distributed as decoded
+ITCH binary streams rather than packet captures.
+
+This repository provides a complete packet-to-book reconstruction pipeline by:
+
+- generating synthetic PCAP captures from public NASDAQ ITCH binaries,
+- extracting MoldUDP64 packet payloads,
+- decoding NASDAQ TotalView-ITCH 5.0 messages,
+- reconstructing Level-3 limit order book per symbol using
+  **BaseLOBEngine**.
+
+The current implementation is focused on deterministic reconstruction and
+benchmarking.
+
+Future work will introduce an internal protocol representation that separates
+packet decoding from downstream market research and feature extraction.
 
 ---
 
 # Why a PCAP Generator?
 
 NASDAQ publicly distributes historical **ITCH binary files**, not the original
-network captures.
+network packet captures.
 
-Those files contain a stream of length-prefixed ITCH messages without the
-surrounding Ethernet, IPv4, UDP and MoldUDP64 framing that would normally be
-present in a network capture.
+Those binary files contain a continuous stream of length-prefixed ITCH messages
+without the surrounding packet framing used during transmission.
 
-This repository therefore provides **pcap_generator**, which reconstructs
-synthetic PCAP captures from the published ITCH binary files. These generated
-captures allow the packet decoder to be developed, tested and benchmarked
-without requiring access to proprietary network captures.
+`pcap_generator` reconstructs synthetic PCAP files from those binaries, making
+it possible to develop, validate and benchmark packet-based decoders without
+requiring proprietary captures.
 
-Historical ITCH binary files can be downloaded from:
+Historical ITCH binaries are available from:
 
 https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/
+
+During generation, ITCH messages are packed into each packet until the
+configured MTU limit is reached before a new packet is started. This keeps the
+number of packets small for benchmarking while maximizing the amount of market
+data carried by each generated packet.
 
 ---
 
 # Architecture
+
 ```mermaid
 flowchart TD
 
     A["NASDAQ ITCH Binary"]
-    --> B["pcap_generator"]
+        --> B["pcap_generator"]
 
-    B --> C["PCAP Capture"]
+    B --> C["PCAP"]
 
-    C --> D["Packet Decoder"]
+    C --> D["pcap_decoder"]
 
-    D --> E["Ethernet / IPv4 / UDP"]
+    D --> E{"Decode Mode"}
 
-    E --> F["Decoded ITCH Messages"]
+    E --> F["Direct"]
 
-    F --> G{"Decode Mode"}
+    E --> G["MarketState"]
 
-    G --> H["Direct"]
+    F --> H["BaseLOBEngine"]
 
-    G --> I["MarketState"]
+    G --> I["Event"]
 
-    I --> J["Event"]
+    I --> J["reconstruct_market_state()"]
 
-    J --> K["reconstruct_market_state()"]
+    J --> H
 
-    H --> L["BaseLOBEngine"]
+    H --> K["Level-3 Limit Order Book"]
 
-    K --> L
-
-    L --> M["Limit Order Book"]
-
-    K -. maintains .-> N["LobState"]
+    J -. updates .-> L["LobState"]
 ```
 
 ---
 
 # Decode Modes
 
-The decoder supports two reconstruction modes that share the same underlying
-limit order book implementation.
+The decoder provides two reconstruction paths built on the same underlying
+order book implementation.
 
 | Mode | Description |
 |------|-------------|
-| **Direct** | Decodes ITCH messages and applies them directly through BaseLOBEngine's `itch_*` interfaces. This is the default high-throughput reconstruction path. |
-| **MarketState** | Converts decoded ITCH messages into the internal `Event` representation before replaying them through `reconstruct_market_state()`. This reconstructs the same limit order book while additionally maintaining `LobState` and derived market statistics. |
+| **Direct** | Decodes each ITCH message and applies it directly through BaseLOBEngine's `itch_*` interfaces. This is the default reconstruction path and minimizes reconstruction overhead. |
+| **MarketState** | Converts decoded ITCH messages into the internal `Event` representation before replaying them through `reconstruct_market_state()`. In addition to reconstructing the same order book, this mode maintains `LobState` containing derived market statistics. |
 
-Both modes produce the same reconstructed limit order book. The `MarketState` 
-mode exists to maintain derived market information for validation and market analytics 
-without changing the underlying reconstruction logic.
+Both modes reconstruct the same Level-3 order book.
+
+The additional `MarketState` path exists for validation and market analytics,
+allowing derived market features to be maintained without changing the
+underlying reconstruction logic.
+
+---
+
+# Performance
+
+Performance is reported for the complete reconstruction pipeline, from reading
+packets in the PCAP file to updating the reconstructed limit order book.
+
+The benchmark dataset below is generated using the included
+`pcap_generator`.
+
+```bash
+./pcap_generator \
+    data/input/01302020.NASDAQ_ITCH50 \
+    data/generated/01302020.pcap \
+    1000000
+```
+
+This produces a capture of approximately **1.5 GB** containing:
+
+| Property | Value |
+|----------|------:|
+| Packets | 1,000,000 |
+| ITCH Messages | 45,574,109 |
+| Symbols | ~8,900+ |
+
+### Message Distribution
+
+| Type | Count |
+|------|------:|
+| Adds | 19,823,585 |
+| Deletes | 17,638,479 |
+| Replaces | 4,281,676 |
+| Cancels | 1,638,841 |
+| Executions | 651,310 |
+
+Because the generator packs ITCH messages until the configured MTU is reached,
+a relatively small number of packets can carry a much larger number of ITCH
+messages.
+
+This packing strategy is used by the benchmark generator to maximize packet
+utilization. It should not be interpreted as modelling how historical packet
+captures were originally transmitted.
+
+### Throughput
+
+Release build (`-O3`)
+
+| Metric | Value |
+|--------|------:|
+| ITCH Messages / sec | ~ 5.8-6.0 Million |
+| Packets / sec | ~140 Thousand |
+
+The reported throughput includes:
+
+- PCAP packet processing
+- MoldUDP64 payload extraction
+- ITCH message decoding
+- Level-3 order book reconstruction
 
 ---
 
@@ -100,7 +181,7 @@ git submodule update --init --recursive
 # Repository Structure
 
 ```text
-base_lob_engine/      BaseLOBEngine (Git submodule)
+base_lob_engine/      Git submodule
 benchmarks/
 data/
 ├── input/
@@ -115,13 +196,11 @@ src/
 
 ## Generate a PCAP
 
-Generate a PCAP capture from a NASDAQ TotalView-ITCH 5.0 binary file.
-
 ```bash
 ./pcap_generator <input_binary> <output_pcap> [max_packets]
 ```
 
-Example using the default packet limit:
+Example:
 
 ```bash
 ./pcap_generator \
@@ -129,8 +208,7 @@ Example using the default packet limit:
     data/generated/01302020.pcap
 ```
 
-By default, the generator writes up to **5000 packets**. A different packet
-limit can be supplied as the optional third argument:
+The optional third argument limits the maximum number of packets generated.
 
 ```bash
 ./pcap_generator \
@@ -139,60 +217,35 @@ limit can be supplied as the optional third argument:
     100000
 ```
 
-The output allocation is derived automatically from the requested packet
-limit, the PCAP global header, per-packet headers, and the maximum packet size.
-The generated file is truncated to the actual number of bytes written once
-generation completes.
+The output allocation is computed automatically from the requested packet
+count together with the PCAP global header, per-packet headers and the
+configured MTU.
 
-Larger packet limits can produce correspondingly larger PCAP files. The
-default is intended to provide a compact capture for testing and development.
-
-If a PCAP capture is already available, the generation step is unnecessary
-and the file can be passed directly to `pcap_decoder`.
+If a PCAP file is already available, this step can be skipped.
 
 ---
 
 ## Decode a PCAP
 
-### Direct mode (default)
+Default reconstruction:
 
 ```bash
 ./pcap_decoder <pcap_file>
 ```
 
-Example:
-
-```bash
-./pcap_decoder data/generated/01302020.pcap
-```
-
----
-
-### Verbose mode
+Verbose logging:
 
 ```bash
 ./pcap_decoder <pcap_file> --verbose
 ```
 
----
-
-### MarketState mode
-
-Reconstruct the limit order book while maintaining `LobState`.
+MarketState reconstruction:
 
 ```bash
 ./pcap_decoder <pcap_file> --market-state
 ```
 
-Example:
-
-```bash
-./pcap_decoder data/generated/01302020.pcap --market-state
-```
-
----
-
-### MarketState + Verbose
+MarketState with verbose logging:
 
 ```bash
 ./pcap_decoder <pcap_file> --market-state --verbose
@@ -202,10 +255,10 @@ Example:
 
 # Features
 
-- NASDAQ TotalView-ITCH 5.0 packet decoding
-- Ethernet / IPv4 / UDP packet parsing
-- Deterministic limit order book reconstruction
+- NASDAQ TotalView-ITCH 5.0 decoding
+- MoldUDP64 packet extraction
+- Deterministic Level-3 limit order book reconstruction
 - Direct reconstruction through `itch_*` interfaces
 - Event-based reconstruction through `reconstruct_market_state()`
-- Optional maintenance of derived market state (`LobState`)
-- Synthetic PCAP generation from public NASDAQ ITCH binary files
+- Optional maintenance of derived market statistics through `LobState`
+- PCAP generation from public NASDAQ ITCH binary files
