@@ -150,8 +150,8 @@ Release build (`-O3`)
 
 | Metric | Value |
 |--------|------:|
-| ITCH Messages / sec | ~ 5.8-6.0 Million |
-| Packets / sec | ~140 Thousand |
+| ITCH Messages / sec | ~5.8–6.0 Million |
+| Packets / sec | ~120 Thousand |
 
 The reported throughput includes:
 
@@ -159,6 +159,31 @@ The reported throughput includes:
 - MoldUDP64 payload extraction
 - ITCH message decoding
 - Level-3 order book reconstruction
+
+### Latency
+
+Optional latency instrumentation can be enabled by compiling with the
+`MEASURE_LATENCY` flag:
+
+```bash
+g++ -std=c++23 -O3 -DMEASURE_LATENCY \
+    -Ibase_lob_engine \
+    -Iinclude \
+    src/pcap_decoder.cpp \
+    -o exec
+```
+
+Measured on the benchmark dataset above:
+
+| Metric | Latency |
+|--------|--------:|
+| P50 | 187 ns |
+| P95 | 281 ns |
+| P99 | 394 ns |
+| Max | 36,536 ns |
+
+Latency instrumentation is intended for benchmarking and is disabled in
+normal builds because timestamp collection introduces measurable overhead.
 
 ---
 
