@@ -8,6 +8,20 @@ benchmark datasets from the publicly available NASDAQ ITCH binary files.
 
 ---
 
+## Table of Contents
+- [Why this Project](#why-this-project)
+- [Why a PCAP Generator?](#why-a-pcap-generator)
+- [Architecture](#architecture)
+- [Decode Modes](#decode-modes)
+- [Performance](#performance)
+- [Clone](#clone)
+- [Repository Structure](#repository-structure)
+- [Usage](#usage)
+- [Features](#features)
+- [Related Projects](#related-projects)
+
+---
+
 # Why this Project
 
 Most publicly available NASDAQ historical datasets are distributed as decoded
@@ -19,7 +33,7 @@ This repository provides a complete packet-to-book reconstruction pipeline by:
 - extracting MoldUDP64 packet payloads,
 - decoding NASDAQ TotalView-ITCH 5.0 messages,
 - reconstructing Level-3 limit order book per symbol using
-  **BaseLOBEngine**.
+  [BaseLOBEngine](https://github.com/pankajj6/base_lob_engine).
 
 The current implementation is focused on deterministic reconstruction and
 benchmarking.
@@ -287,3 +301,10 @@ MarketState with verbose logging:
 - Event-based reconstruction through `reconstruct_market_state()`
 - Optional maintenance of derived market statistics through `LobState`
 - PCAP generation from public NASDAQ ITCH binary files
+
+---
+
+# Related Projects
+
+- [**Base LOB Engine**](https://github.com/pankajj6/base_lob_engine): The underlying C++ limit order book and matching engine used by this decoder for Level-3 reconstruction.
+- [**TALON**](https://github.com/pankajj6/talon): A deterministic, latency-aware agent-based market simulator that utilizes the same `base_lob_engine` for discrete-event exchange matching.
