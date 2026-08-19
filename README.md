@@ -138,7 +138,7 @@ This produces a capture of approximately **1.5 GB** containing:
 |----------|------:|
 | Packets | 1,000,000 |
 | ITCH Messages | 45,574,109 |
-| Symbols | ~8,900+ |
+| Symbols | ~5,000+ |
 
 ### Message Distribution
 
