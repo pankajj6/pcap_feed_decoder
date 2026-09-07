@@ -87,7 +87,7 @@ size_t max_packets = 5000 ; // default
 constexpr size_t PCAP_GLOBAL_HEADER_SIZE = 24;
 constexpr size_t PCAP_PACKET_HEADER_SIZE = 16;
 
-constexpr size_t PACKET_SIZE = 1500 ; // MTU limit
+constexpr size_t PACKET_SIZE = 1514 ; // MTU limit + Ethernet header(14 bytes)
 
 // Ethernet - IP - UDP - MOLD - 2 len - ITCH
 
