@@ -11,7 +11,7 @@
 #include <cstring> // check if this is for memcpy
 #include <sys/stat.h>
 #include <bit>
-
+#include <random>
 
 using namespace std;
 
@@ -87,10 +87,29 @@ size_t max_packets = 5000 ; // default
 constexpr size_t PCAP_GLOBAL_HEADER_SIZE = 24;
 constexpr size_t PCAP_PACKET_HEADER_SIZE = 16;
 
-constexpr size_t PACKET_SIZE = 1514 ; // MTU limit + Ethernet header(14 bytes)
-
+size_t PACKET_SIZE = 1514 ; // MTU limit + Ethernet header(14 bytes)
 // Ethernet - IP - UDP - MOLD - 2 len - ITCH
 
+// constexpr for Markov States: Quiet , Mid , Burst
+constexpr uint16_t Quiet = 0 ;
+constexpr uint16_t Mid = 1 ;
+constexpr uint16_t Burst = 2 ;
+
+// A fast, high-quality 64-bit/32-bit PRNG (WyRand)
+struct WyRand {
+    uint64_t state;
+    
+    using result_type = uint32_t;
+    static constexpr uint32_t min() { return 0; }
+    static constexpr uint32_t max() { return 0xFFFFFFFF; }
+
+    uint32_t operator()() {
+        state += 0xa0761d6478bd642f; // Fast state transition
+        // The scramble: Multiplies and XORs to ensure low bits are perfectly uniform
+        __uint128_t val = (__uint128_t)state * (state ^ 0xe7037ed1a0b428db);
+        return (uint32_t)(val >> 64) ^ (uint32_t)val;
+    }
+};
 
 int main(int argc, char* argv[]){
 
@@ -180,13 +199,69 @@ int main(int argc, char* argv[]){
   memcpy(out_ptr , &gp , sizeof(gp)); // done
   out_ptr += sizeof(gp) ;
  
- 
+
+  // Markov process Transistion matrix :
+  constexpr uint16_t TM[3][3] = {
+    {52428, 11796,  1312}, // Quiet state transitions: [Q->Q, Q->M, Q->B]
+    {36700, 18350, 10486}, // Mid state transitions:   [M->Q, M->M, M->B]
+    { 2621, 11796, 51119}  // Burst state transitions: [B->Q, B->M, B->B]
+  };
+
+  uint16_t current_state = Burst ; // current markov state. inital burst as auction at 9:30 causes that
+  uint64_t seed = 123456789ULL;
+
+  auto gen = WyRand{seed} ; 
+
+  std::uniform_int_distribution<uint16_t> dist(0,65535);
+
   while(inp_ptr < end_ptr){
   
     if(total_packets >= max_packets){
       break ;
     }
-     
+    
+    // logic for realistic packet size modellling:
+
+    // some logic to do generaate a 64 bit number .
+    // 64 bit
+    uint64_t num = gen();
+
+    // scaled probability for markov check
+    uint16_t num16 = dist(gen) ;
+
+    // define base 
+    auto base = TM[current_state][Quiet] ;
+
+    // markov state transistion
+    if (num16 <= base){
+      current_state = Quiet ;
+    }
+    else if (num16 <= base + TM[current_state][Mid]){
+      current_state = Mid ;
+    }
+    else {
+      current_state = Burst ;
+    }
+
+    // packet size updation . (new state)
+    if (current_state  == Quiet){
+      // use the 19th bit of num for random coin flip
+      uint8_t coin = (num >> 19) & 0x1 ;
+      // only two sizes here in Quite state.
+      PACKET_SIZE = (coin == 0) ? 114 : 166 ;
+    }
+    else if (current_state == Mid){
+      // use bit 16 to 18 of num
+      uint8_t x = (num >> 16) & 0b0111 ; // 7
+      /// update using the sizes 
+      PACKET_SIZE = 218 + (x * 52) ;
+    }
+    else{ // burst
+      // fixed to Max MTU + ethernet header (14)
+      PACKET_SIZE = 1514 ;
+    }
+
+    
     // memcpy(ptr to destination , ptr to src , size to copy from soruce to destination );
     
     char buffer[PACKET_SIZE] = {}; // data packet
