@@ -95,8 +95,8 @@ struct alignas(64) ParserState {
   Engine<EngineMode::Parser> engine ;
 
   void print(){
-    std::cout << "total packets    : " << total_packets << std::endl ;
-    std::cout << "total messages   : " << total_messages << std::endl ;
+    std::cout << "total packets (all tickers) : " << total_packets << std::endl ;
+    std::cout << "total itch msgs : " << total_messages << std::endl ;
     std::cout << "total addition   : " << adds << std::endl ;
     std::cout << "total executions : " << executes << std::endl ;
     std::cout << "total cancels    : " << cancels << std::endl ;
@@ -123,7 +123,7 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
     // packet length
     uint32_t pkt_len ;
     std::memcpy(&pkt_len , ptr+8, sizeof(uint32_t)) ;
-    // pkt_len = std::byteswap(pkt_len) ;
+    // pkt_len = std::byteswap(pkt_len) ; // skip this for little endian host
     
     // count of itch msgs in packet 
     uint16_t msg_count ;
@@ -157,9 +157,6 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
       // move to message      
       ptr += 2 ; 
       
-      // increment count
-      ps.total_messages++ ;
-      
       // message type
       memcpy(&msg_type , ptr, 1);
       
@@ -171,6 +168,24 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
       std::memcpy(&time_ns, ptr+5, sizeof(uint64_t));
       time_ns = std::byteswap(time_ns) >> 16 ;
     
+      // stock locate
+      uint16_t stock_locate ;
+      std::memcpy(&stock_locate, ptr+1, sizeof(uint16_t)) ;
+      stock_locate = std::byteswap(stock_locate);
+
+      
+      #if defined(SPECIFIC_STOCK_LOCATE)
+      // skip all unrelated stocks update
+      if (stock_locate != SPECIFIC_STOCK_LOCATE){
+        ptr += msg_len ;
+        msg_count-- ;
+        continue ;
+      }
+      #endif
+
+      // increment count (by default all tickers, but in specific locate macro on, it will be only about that ticker.)
+      ps.total_messages++ ;
+
       switch(msg_type){
       
 
