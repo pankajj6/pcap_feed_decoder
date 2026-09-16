@@ -87,7 +87,7 @@ struct alignas(64) ParserState {
   // stores sequence number : pointer to packet header
   std::flat_map<uint64_t , char*> out_of_order_buffer ; 
   
-  #ifdef MEASURE_LATENCY
+  #if defined(MEASURE_RECON_LATENCY) || defined(MEASURE_PARSER_LATENCY)
   std::vector<uint64_t> message_latency_ns ;
   #endif
   
@@ -143,7 +143,7 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
     msg_count = std::byteswap(msg_count) ;
     ptr += 2;  
     
-    #ifdef MEASURE_LATENCY
+    #if defined(MEASURE_RECON_LATENCY) || defined(MEASURE_PARSER_LATENCY)
     auto t0 = std::chrono::steady_clock::now() ; 
     auto total_msg = msg_count ;
     #endif
@@ -211,6 +211,8 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
           msg.shares = std::byteswap(msg.shares) ;
           char side = msg.buy_sell_indicator ;
           
+          #if !defined(MEASURE_PARSER_LATENCY)
+          // runs by default. off when macro on.
           if (Mode == DecodeMode::Direct){
             parser_engine.itch_add_order(msg.stock_locate, msg.order_reference_number , msg.price, msg.shares, side);
           }
@@ -219,6 +221,7 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
             Event event = {time_ns, 0 , 0 , EventType::ITCH, MsgType::OrderAdd, msg.stock_locate, {itch} } ; 
             reconstruct_market_state<EngineMode::Parser>(parser_engine, event) ;
           }
+          #endif
           
           ptr += msg_len ;
           msg_count-- ;
@@ -241,6 +244,8 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
           msg.shares = std::byteswap(msg.shares) ;
           char side = msg.buy_sell_indicator ;
           
+          #if !defined(MEASURE_PARSER_LATENCY)
+
           if (Mode == DecodeMode::Direct){
             parser_engine.itch_add_order( msg.stock_locate , msg.order_reference_number , msg.price, msg.shares , side);
           }
@@ -249,7 +254,8 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
             Event event = {time_ns, 0 , 0 , EventType::ITCH, MsgType::OrderAdd, msg.stock_locate, {itch} } ; 
             reconstruct_market_state<EngineMode::Parser>(parser_engine, event) ;
           }
-          
+          #endif
+
           ptr += msg_len ;
           msg_count-- ;
           
@@ -271,6 +277,8 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
           msg.order_reference_number = std::byteswap(msg.order_reference_number) ;
           msg.executed_shares = std::byteswap(msg.executed_shares) ;
           
+          #if !defined(MEASURE_PARSER_LATENCY)
+
           if (Mode == DecodeMode::Direct){
             parser_engine.itch_execute_order(msg.stock_locate , msg.order_reference_number , msg.executed_shares);
           }
@@ -279,7 +287,8 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
             Event event = {time_ns, 0 , 0 , EventType::ITCH, MsgType::OrderExec, msg.stock_locate, {itch} } ; 
             reconstruct_market_state<EngineMode::Parser>(parser_engine, event) ;
           }
-          
+          #endif
+
           ptr += msg_len ;
           msg_count-- ;
           
@@ -306,6 +315,8 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
           msg.order_reference_number = std::byteswap(msg.order_reference_number) ;
           msg.cancelled_shares = std::byteswap(msg.cancelled_shares) ;
           
+          #if !defined(MEASURE_PARSER_LATENCY)
+
           if (Mode == DecodeMode::Direct){
             parser_engine.itch_reduce_order(msg.stock_locate, msg.order_reference_number , msg.cancelled_shares);
           }
@@ -314,7 +325,8 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
             Event event = {time_ns, 0 , 0 , EventType::ITCH, MsgType::OrderCancel, msg.stock_locate, {itch} } ; 
             reconstruct_market_state<EngineMode::Parser>(parser_engine, event) ;
           }
-          
+          #endif
+
           ptr += msg_len ;
           msg_count-- ;
           
@@ -333,6 +345,7 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
           msg.stock_locate = std::byteswap(msg.stock_locate) ;
           msg.order_reference_number = std::byteswap(msg.order_reference_number) ;
           
+          #if !defined(MEASURE_PARSER_LATENCY)
           if (Mode == DecodeMode::Direct){
             parser_engine.itch_delete_order(msg.stock_locate, msg.order_reference_number);
           }
@@ -346,7 +359,8 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
             Event event = {time_ns, 0 , 0 , EventType::ITCH, MsgType::OrderCancel, msg.stock_locate, {itch} } ; 
             reconstruct_market_state<EngineMode::Parser>(parser_engine, event) ;
           }
-          
+          #endif
+
           ptr += msg_len ;
           msg_count-- ;
           
@@ -369,6 +383,8 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
           msg.price = std::byteswap(msg.price) ;
           msg.shares = std::byteswap(msg.shares) ;
           
+          #if !defined(MEASURE_PARSER_LATENCY)
+          // runs by default. off when macro on.
           if (Mode == DecodeMode::Direct){
             parser_engine.itch_replace_order(msg.stock_locate , msg.original_order_reference_number , msg.new_order_reference_number , msg.price , msg.shares );
           }
@@ -377,7 +393,8 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
             Event event = {time_ns, 0 , 0 , EventType::ITCH, MsgType::OrderReplace, msg.stock_locate, {itch} } ; 
             reconstruct_market_state<EngineMode::Parser>(parser_engine, event) ;
           }
-          
+          #endif
+
           ptr += msg_len ;
           msg_count-- ;
           
@@ -430,10 +447,12 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
   
     }
     
-  #ifdef MEASURE_LATENCY
+  #if defined(MEASURE_RECON_LATENCY) || defined(MEASURE_PARSER_LATENCY)
   auto t1 = std::chrono::steady_clock::now();
-  auto t = (std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count())/total_msg ;
-  ps.message_latency_ns.push_back(t);
+  if (total_msg > 0){
+    auto t = (std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count())/total_msg ;
+    ps.message_latency_ns.push_back(t);
+  }
   #endif
   
   ps.total_packets +=1 ;

@@ -140,7 +140,7 @@ int main(int argc , char* argv[]){
   
   // parser state 
   ParserState ps ;
-  #ifdef MEASURE_LATENCY
+  #if defined(MEASURE_RECON_LATENCY) || defined(MEASURE_PARSER_LATENCY)
   ps.message_latency_ns.reserve(50000000); // rough estimate number , for initial benchmark
   #endif
   
@@ -306,7 +306,7 @@ int main(int argc , char* argv[]){
   
   ps.print() ; 
   
-  #ifdef MEASURE_LATENCY
+  #if defined(MEASURE_RECON_LATENCY) || defined(MEASURE_PARSER_LATENCY)
   
   auto& lat = ps.message_latency_ns;
 
