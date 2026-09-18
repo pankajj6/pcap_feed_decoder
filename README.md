@@ -278,7 +278,7 @@ The target long-run state distribution is:
 * **20% Mid**
 * **20% Burst**
 
-The choice of a non-uniform packet-size distribution is motivated by published measurements of market-data packet captures. In particular, Keysight's analysis of market-data feeds shows that packet-size distributions vary by exchange and that averages alone do not capture the range of packet sizes present in real feeds. ([Keysight][1])
+The choice of a non-uniform packet-size distribution is motivated by published measurements of market-data packet captures. In particular, Keysight's analysis of market-data feeds shows that packet-size distributions vary by exchange and that averages alone do not capture the range of packet sizes present in real feeds. ([Keysight](https://www.keysight.com/blogs/en/tech/nwvs/2020/06/10/packet-sizes-for-market-data-feeds-and-their-impact-on-latency))
 
 The transition probabilities used by the generator are:
 
