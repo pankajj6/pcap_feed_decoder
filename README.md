@@ -102,129 +102,81 @@ The included `pcap_generator` is a separate input-generation utility. It is usef
 
 # Performance
 
-The benchmarks below separate the cost of ITCH packet/message decoding from the cost of maintaining the full Level-3 order book.
+Benchmarks were run on a **15 million packet PCAP (~7 GB)** generated from the publicly available NASDAQ TotalView-ITCH binary data. The capture contains **190,907,472 ITCH messages** across **all active symbols**.
 
-The benchmark PCAP was generated from the publicly available NASDAQ TotalView-ITCH binary data using `pcap_generator`. The current generated capture is approximately **30 GB** and contains **15.9 million packets** and **202.6 million ITCH messages**. The generator was stopped after approximately 15.9 million packets when the available disk space was exhausted. The resulting capture is still large enough to provide a useful workload for benchmarking the decoder.
+Latency is measured **once per packet**: from the beginning of packet processing until the complete packet has been processed. The reported P50/P95/P99 values therefore represent **full packet-processing latency**, not per-ITCH-message latency.
 
-All-symbol benchmarks process the feed across the symbols contained in the capture. The single-stock benchmarks use the same PCAP and still traverse the complete packet stream.
+## All-Symbol Parser
 
-## Parser / ITCH Decoding
+`MEASURE_PARSER_LATENCY` benchmarks the packet and ITCH decoding path across the complete feed without Level-3 order book updates.
 
-The `MEASURE_PARSER_LATENCY` compile-time flag isolates the packet and ITCH decoding path.
+**~96.0 million ITCH messages/sec**
 
-With this flag enabled, the decoder:
-
-- reads and processes the PCAP packets;
-- processes the Ethernet/IP/UDP/MoldUDP64 framing;
-- extracts the ITCH messages;
-- decodes the ITCH message fields;
-- performs the required byte-order conversions;
-- processes messages across all symbols in the feed;
-- does **not** update the Level-3 order book.
-
-This therefore measures the cost of parsing and decoding the ITCH feed without the additional work of maintaining the order book.
-
-### All-symbol result
-
-**~99.9 million ITCH messages/sec**  
-**P50: 10 ns · P95: 30 ns · P99: 40 ns**
+**P50: 40 ns · P95: 291 ns · P99: 451 ns**
 
 | Metric | Result |
 |---|---:|
-| Packets/sec | ~7.87 million |
-| ITCH messages/sec | **~99.9 million** |
-| P50 | **10 ns** |
-| P95 | **30 ns** |
-| P99 | **40 ns** |
-| Total packets | 10,000,000 |
-| Total ITCH messages | 126,999,530 |
+| Packets/sec | ~7.54 million |
+| ITCH messages/sec | **~96.0 million** |
+| Total packets | 15,000,000 |
+| Total ITCH messages | 190,907,472 |
+| P50 | **40 ns** |
+| P95 | **291 ns** |
+| P99 | **451 ns** |
 
-A second run produced approximately **90.5 million ITCH messages/sec**, with the same 10 ns P50, 30 ns P95 and 40 ns P99 latency profile.
+Repeated runs on the same capture produced approximately **94–96 million ITCH messages/sec**.
 
-These results are for the **all-symbol parser path**. They should not be compared directly with the reconstruction throughput below, since the reconstruction benchmark performs substantially more work.
+## Single-Stock Parser
 
-## Single-Stock Parser Benchmark
+`SPECIFIC_STOCK_LOCATE` allows the parser to isolate a single stock while continuing to traverse the complete PCAP.
 
-`SPECIFIC_STOCK_LOCATE` provides a compile-time benchmark mode for isolating one ticker.
+For the benchmark capture, stock locate `398` corresponds to **AMZN**.
 
-For example:
-
-```bash
--DSPECIFIC_STOCK_LOCATE=398
-````
-
-When this flag is enabled, the decoder still traverses the complete PCAP and processes the packet and message structure normally, but after decoding the ITCH stock-locate field it skips messages whose stock locate does not match the selected value.
-
-For unrelated messages, the decoder therefore does not continue into the remaining message fields or perform the downstream processing. The selected stock's messages go through the normal decoding path.
-
-This flag is intended for **benchmarking a particular ticker**, not for identifying tickers in general. Stock-locate values are feed-specific identifiers and are not universally mapped to the same ticker. For the benchmark capture used here, stock locate `398` was identified as **AMZN** before running the benchmark.
-
-### AMZN result
-
-**~16.3k ITCH messages/sec**   
-**P50: 10 ns · P95: 31 ns · P99: 41 ns**
-
-| Metric                     |      Result |
-| -------------------------- | ----------: |
-| Packets/sec                |    ~965,653 |
-| Selected ITCH messages/sec | **~16,305** |
-| Total packets traversed    |  15,911,917 |
-| Selected ITCH messages     |     268,673 |
-| P50                        |   **10 ns** |
-| P95                        |   **31 ns** |
-| P99                        |   **41 ns** |
-
-The packet rate here refers to the **entire PCAP traversal**. Only 268,673 messages belong to the selected stock, so the selected-message throughput should not be interpreted as the throughput of a smaller single-stock PCAP.
-
-## Full Level-3 Reconstruction
-
-`MEASURE_RECON_LATENCY` measures the complete reconstruction path.
-
-In this mode, the decoder performs the packet processing and ITCH decoding described above and then applies the decoded messages to the Level-3 order books.
-
-The benchmark reconstructs the order-level book state across the symbols contained in the feed, including additions, executions, cancels, deletes and replaces. The reconstructed books are maintained by `BaseLOBEngine`.
-
-This additional order-book work is the main reason the throughput is substantially lower than the parser-only result.
-
-### All-symbol result
-
-**~4.3 million ITCH messages/sec**   
-**P50: 170 ns · P95: 383 ns · P99: 631 ns**
-
-| Metric              |            Result |
-| ------------------- | ----------------: |
-| Packets/sec         |          ~337,112 |
-| ITCH messages/sec   | **~4.29 million** |
-| Total packets       |        15,911,917 |
-| Total ITCH messages |       202,608,852 |
-| P50                 |        **170 ns** |
-| P95                 |        **383 ns** |
-| P99                 |        **631 ns** |
-
-A separate run produced approximately **4.27 million ITCH messages/sec**, with P50/P95/P99 of 171/391/641 ns.
-
-The benchmark feed contains thousands of active NASDAQ symbols, and the reconstruction path maintains the corresponding order-level books rather than simply decoding the messages and discarding them.
+| Metric | Result |
+|---|---:|
+| Packets/sec | ~12.70 million |
+| Selected ITCH messages/sec | **~215,785** |
+| Total packets traversed | 15,000,000 |
+| Selected ITCH messages | 254,926 |
+| P50 | **20 ns** |
+| P95 | **100 ns** |
+| P99 | **250 ns** |
 
 ## Single-Stock Level-3 Reconstruction
 
-The same `SPECIFIC_STOCK_LOCATE` mechanism can be combined with `MEASURE_RECON_LATENCY` to measure the reconstruction cost for a single ticker while still traversing the complete PCAP.
+`MEASURE_RECON_LATENCY` enables Level-3 reconstruction for the selected stock.
 
-For the AMZN benchmark using stock locate `398`:
+| Metric | Result |
+|---|---:|
+| Packets/sec | ~11.01 million |
+| Selected ITCH messages/sec | **~187,146** |
+| Total packets traversed | 15,000,000 |
+| Selected ITCH messages | 254,926 |
+| P50 | **20 ns** |
+| P95 | **91 ns** |
+| P99 | **652 ns** |
 
-**~16.7k ITCH messages/sec**  
-**P50: 10 ns · P95: 40 ns · P99: 50 ns**
+## Full-Feed Reconstruction — Stress Test
 
-| Metric                     |      Result |
-| -------------------------- | ----------: |
-| Packets/sec                |    ~989,181 |
-| Selected ITCH messages/sec | **~16,702** |
-| Total packets traversed    |  15,911,917 |
-| Selected ITCH messages     |     268,673 |
-| P50                        |   **10 ns** |
-| P95                        |   **40 ns** |
-| P99                        |   **50 ns** |
+The full reconstruction benchmark processes the complete feed and maintains Level-3 order books across **5,000+ active symbols**.
 
-This isolates the reconstruction workload for the selected ticker without removing the cost of traversing the complete packet capture.
+This represents the substantially heavier workload of maintaining thousands of order-level books while processing the complete market-data stream.
+
+**~5.59 million ITCH messages/sec**
+
+**P50: 592 ns · P95: 9.06 µs · P99: 11.25 µs**
+
+| Metric | Result |
+|---|---:|
+| Packets/sec | ~438,947 |
+| ITCH messages/sec | **~5.59 million** |
+| Total packets | 15,000,000 |
+| Total ITCH messages | 190,907,472 |
+| P50 | **592 ns** |
+| P95 | **9.06 µs** |
+| P99 | **11.25 µs** |
+
+The higher packet-processing latency reflects the amount of work performed for each packet when Level-3 reconstruction is enabled across the full set of active symbols.
 
 ---
 
@@ -355,7 +307,7 @@ causes messages whose stock locate is not `398` to be skipped after the stock lo
 
 This is intended for **per-ticker benchmarking**, not as a replacement for the full-feed decoder.
 
-Stock locate numbers are feed-specific identifiers and are not self-explanatory. For the specific itch file used in this repository, stock locate `398` corresponds to **AMZN**. A user working with another capture should determine the relevant stock-locate mapping for that feed rather than assuming the number identifies the same ticker universally.
+Stock locate numbers are feed-specific identifiers and are not self-explanatory. For the benchmark capture used here, stock locate `398` corresponds to **AMZN**. A user working with another capture should determine the relevant stock-locate mapping for that feed rather than assuming the number identifies the same ticker universally.
 
 ---
 
@@ -524,7 +476,7 @@ Run:
 For single-stock Level-3 reconstruction:
 
 ```bash
-g++ -std=c++23 -O3 \
+g++ -std=c++23 -O2 \
     -DMEASURE_RECON_LATENCY \
     -DSPECIFIC_STOCK_LOCATE=398 \
     -Ibase_lob_engine \
