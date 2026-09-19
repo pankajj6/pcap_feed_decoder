@@ -1,4 +1,11 @@
-theme: jekyll-theme-cayman
 title: PCAP Feed Decoder
-description: Packet-level market-data processing and Level-3 reconstruction infrastructure for NASDAQ TotalView-ITCH 5.0.
-show_downloads: false
+description: Packet-level decoding and Level-3 reconstruction infrastructure for NASDAQ TotalView-ITCH 5.0.
+url: "https://pankajj6.github.io"
+baseurl: "/pcap_feed_decoder"
+
+markdown: kramdown
+kramdown:
+  input: GFM
+
+exclude:
+  - README.md
