@@ -207,7 +207,7 @@ int main(int argc, char* argv[]){
     { 2621, 11796, 51119}  // Burst state transitions: [B->Q, B->M, B->B]
   };
 
-  uint16_t current_state = Burst ; // current markov state. inital burst as auction at 9:30 causes that
+  uint16_t current_state = Quiet ; // current markov state. 
   uint64_t seed = 123456789ULL;
 
   auto gen = WyRand{seed} ; 
@@ -339,7 +339,11 @@ int main(int argc, char* argv[]){
   msync(o_ptr, size1, MS_SYNC); // flush to disk.
   
   size_t actual_data_size = out_ptr - static_cast<char*>(o_ptr) ; // bytes
-  ftruncate(fd1, actual_data_size);
+  auto result = ftruncate(fd1, actual_data_size);
+  if (result == -1 ){
+    std::cerr << "failed to resize pcap at end" ;
+    return -1;
+  }
   
   if (munmap(o_ptr, size1) == -1) {
         cerr << "Error unmapping" << endl;
