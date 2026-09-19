@@ -45,11 +45,34 @@
     </aside>
 
     <main id="main" class="content">
+
       <section class="section intro">
         <h2>Overview</h2>
         <p><strong>PCAP Feed Decoder</strong> is a market-data processing system for working from captured network traffic to decoded exchange messages and reconstructed Level-3 order-book state.</p>
         <p>The current implementation targets <strong>NASDAQ TotalView-ITCH 5.0</strong> and covers Ethernet, IPv4, UDP, MoldUDP64 session and sequence handling, ITCH message decoding, packet-level benchmarking, and Level-3 reconstruction.</p>
+        <p>The decoder can be used directly with an existing ITCH PCAP. An included <code>pcap_generator</code> is provided for cases where only the publicly available historical ITCH binary data is available.</p>
         <p>The project is maintained as part of <strong>SMMG Research</strong> work on market microstructure, market-data infrastructure, and deterministic simulation.</p>
+      </section>
+
+      <section class="section">
+        <h2>Why this project</h2>
+        <p>Historical NASDAQ TotalView-ITCH data is commonly distributed as length-prefixed ITCH binary streams, while packet-oriented applications consume the messages inside network packets. The decoder provides the missing packet-level processing path between those two representations.</p>
+        <p>This makes the same implementation useful for two related tasks: benchmarking packet and message decoding independently, and reconstructing Level-3 order books from the decoded exchange feed.</p>
+
+        <div class="architecture-list">
+          <div>
+            <strong>Packet processing</strong>
+            <span>Reads captured network packets and processes Ethernet, IPv4, UDP, and MoldUDP64 framing.</span>
+          </div>
+          <div>
+            <strong>Exchange-message decoding</strong>
+            <span>Extracts length-prefixed NASDAQ ITCH 5.0 messages, decodes their fields, and performs the required byte-order conversion.</span>
+          </div>
+          <div>
+            <strong>Market-state reconstruction</strong>
+            <span>Passes decoded exchange messages into Level-3 order-book processing when reconstruction is enabled.</span>
+          </div>
+        </div>
       </section>
 
       <section class="section">
@@ -57,7 +80,37 @@
         <figure class="architecture">
           <img src="assets/architecture.svg" alt="PCAP, MoldUDP64, ITCH 5.0, and Level-3 market-state processing pipeline">
         </figure>
-        <p class="section-note">The processing path is organized around packet handling, transport and session state, protocol decoding, and optional market-state reconstruction.</p>
+
+        <p>The processing path is deliberately layered. A packet is first treated as a network object, then reduced through its transport and session framing until the contained ITCH records are available to the exchange-message decoder. The decoded messages can then terminate at the parser benchmark or continue into one of the Level-3 reconstruction paths.</p>
+
+        <div class="architecture-list">
+          <div>
+            <strong>1. PCAP packet</strong>
+            <span>Reads the captured Ethernet frame while preserving packet boundaries for packet-level throughput and latency measurement.</span>
+          </div>
+          <div>
+            <strong>2. Network and transport</strong>
+            <span>Processes Ethernet, IPv4, and UDP headers to reach the MoldUDP64 payload.</span>
+          </div>
+          <div>
+            <strong>3. MoldUDP64 session state</strong>
+            <span>Tracks session and sequence state and retains packets that arrive ahead of the expected sequence in a bounded buffer.</span>
+          </div>
+          <div>
+            <strong>4. ITCH 5.0 records</strong>
+            <span>Reads each length-prefixed ITCH record, identifies its message type, decodes its fields, and performs byte-order conversion.</span>
+          </div>
+          <div>
+            <strong>5. Decoded exchange messages</strong>
+            <span>Represents the feed at the exchange-protocol level, independent of the surrounding network framing.</span>
+          </div>
+          <div>
+            <strong>6. Downstream processing</strong>
+            <span>Messages can stop at the parser benchmark, enter the direct reconstruction path, or be converted into the internal Event representation for MarketState reconstruction.</span>
+          </div>
+        </div>
+
+        <p>The decoder also contains bounded out-of-order handling. Packets ahead of the expected sequence are temporarily retained and processed when the missing sequence becomes available. Packets that arrive too late, or cannot be retained within the configured buffering window, are counted as out-of-order drops.</p>
       </section>
 
       <section class="section performance">
@@ -87,141 +140,274 @@
           </article>
         </div>
 
-        <p>Latency is measured once per packet, from the beginning of packet processing through completion of that packet. The reported percentiles therefore describe packet-processing latency.</p>
+        <p>Latency is measured once per packet, from the beginning of packet processing through completion of that packet. The reported P50/P95/P99 values therefore describe full packet-processing latency, not per-ITCH-message latency.</p>
 
-        <h3>Complete-feed ITCH decoding</h3>
+        <h3>All-symbol parser</h3>
+        <p>The parser benchmark decodes the complete feed without invoking Level-3 book updates. This isolates packet handling and ITCH message decoding from the substantially more expensive order-book update path.</p>
         <table>
           <tbody>
-            <tr><th>Feed</th><td>NASDAQ TotalView-ITCH 5.0</td></tr>
             <tr><th>Packets</th><td><strong>15,000,000</strong></td></tr>
             <tr><th>Capture size</th><td><strong>~7 GB</strong></td></tr>
             <tr><th>ITCH messages</th><td><strong>190,907,472</strong></td></tr>
-            <tr><th>ITCH throughput</th><td><strong>~96.0M messages/s</strong></td></tr>
             <tr><th>Packet throughput</th><td><strong>~7.54M packets/s</strong></td></tr>
+            <tr><th>ITCH throughput</th><td><strong>~96.0M messages/s</strong></td></tr>
             <tr><th>P50 / P95 / P99</th><td><strong>40 ns / 291 ns / 451 ns</strong></td></tr>
           </tbody>
         </table>
-        <p class="table-note">Parser-only path: the complete feed is decoded without invoking Level-3 book updates.</p>
+        <p class="table-note">Repeated runs on the same capture produced approximately 94–96 million ITCH messages/s.</p>
 
-        <h3>Single-instrument Level-3 reconstruction</h3>
-        <p>For a selected instrument, the packet stream is traversed while only the target instrument's decoded messages are passed to the reconstruction path. For this benchmark capture, stock locate <code>398</code> corresponds to <strong>AMZN</strong>.</p>
+        <h3>Single-stock parser</h3>
+        <p>A compile-time stock-locate filter isolates one instrument after the stock locate has been decoded while the complete PCAP continues to be traversed. For this benchmark capture, stock locate <code>398</code> corresponds to <strong>AMZN</strong>.</p>
         <table>
           <tbody>
             <tr><th>Packets traversed</th><td><strong>15,000,000</strong></td></tr>
             <tr><th>Selected ITCH messages</th><td><strong>254,926</strong></td></tr>
-            <tr><th>Selected-message throughput</th><td><strong>~187k messages/s</strong></td></tr>
+            <tr><th>Selected-message throughput</th><td><strong>~215,785 messages/s</strong></td></tr>
+            <tr><th>Packet throughput</th><td><strong>~12.70M packets/s</strong></td></tr>
+            <tr><th>P50 / P95 / P99</th><td><strong>20 ns / 100 ns / 250 ns</strong></td></tr>
+          </tbody>
+        </table>
+
+        <h3>Single-stock Level-3 reconstruction</h3>
+        <p>The same stock filter can be combined with Level-3 reconstruction. Only the selected instrument's decoded messages are passed into the reconstruction path, while the packet stream itself is still traversed in full.</p>
+        <table>
+          <tbody>
+            <tr><th>Packets traversed</th><td><strong>15,000,000</strong></td></tr>
+            <tr><th>Selected ITCH messages</th><td><strong>254,926</strong></td></tr>
+            <tr><th>Selected-message throughput</th><td><strong>~187,146 messages/s</strong></td></tr>
             <tr><th>Packet throughput</th><td><strong>~11.01M packets/s</strong></td></tr>
             <tr><th>P50 / P95 / P99</th><td><strong>20 ns / 91 ns / 652 ns</strong></td></tr>
           </tbody>
         </table>
 
-        <h3>Full-feed reconstruction</h3>
-        <p>A separate workload reconstructs Level-3 books across the complete set of active symbols in the capture.</p>
+        <h3>Full-feed reconstruction — stress test</h3>
+        <p>The full reconstruction workload maintains Level-3 order books across <strong>5,000+ active symbols</strong> while consuming the complete feed. It is a substantially heavier workload because order-level state is maintained for thousands of books.</p>
         <table>
           <tbody>
             <tr><th>Packets</th><td><strong>15,000,000</strong></td></tr>
             <tr><th>ITCH messages</th><td><strong>190,907,472</strong></td></tr>
+            <tr><th>Packet throughput</th><td><strong>~438,947 packets/s</strong></td></tr>
             <tr><th>ITCH throughput</th><td><strong>~5.59M messages/s</strong></td></tr>
             <tr><th>P50 / P95 / P99</th><td><strong>592 ns / 9.06 µs / 11.25 µs</strong></td></tr>
           </tbody>
         </table>
-        <p class="table-note">This workload measures the cost of maintaining many order-level books while consuming the complete feed.</p>
       </section>
 
       <section class="section">
         <h2>Reconstruction paths</h2>
+        <p>The decoder provides two Level-3 reconstruction paths over the same decoded ITCH feed and the same underlying <strong>BaseLOBEngine</strong>.</p>
         <div class="path-grid">
           <article>
             <div class="path-label">Direct</div>
-            <p>Decoded ITCH messages are applied directly through the engine's <code>itch_*</code> interfaces.</p>
+            <p>Decoded ITCH messages are applied directly through the engine's <code>itch_*</code> interfaces. This keeps the parser-to-book path direct.</p>
           </article>
           <article>
             <div class="path-label">MarketState</div>
-            <p>Decoded messages are converted into the internal <code>Event</code> representation and replayed through <code>reconstruct_market_state()</code>.</p>
+            <p>Decoded messages are converted into the internal <code>Event</code> representation and replayed through <code>reconstruct_market_state()</code>. This path can maintain <code>LobState</code> fields for derived market-state statistics.</p>
           </article>
         </div>
-        <p>The MarketState path can additionally maintain <code>LobState</code> fields for derived market-state statistics.</p>
+
+        <h3>Parser-only benchmark</h3>
+        <p><code>MEASURE_PARSER_LATENCY</code> still performs packet processing, ITCH message extraction, field decoding, and byte-order conversion, but skips Level-3 book updates. <code>MEASURE_RECON_LATENCY</code> measures the corresponding decoding and reconstruction path with book updates enabled.</p>
       </section>
 
       <section class="section">
         <h2>PCAP generation</h2>
-        <p>Public historical NASDAQ TotalView-ITCH data is distributed as length-prefixed binary messages rather than original network captures. The generator places those historical ITCH messages inside Ethernet, IPv4, UDP, and MoldUDP64 framing so they can be processed by the packet path.</p>
-        <p>The benchmark data retains the original historical ITCH records. The generated PCAP supplies the packetization layer.</p>
+        <p>Public historical NASDAQ TotalView-ITCH data is distributed as length-prefixed ITCH binary messages rather than original network captures. The generator reconstructs the missing network framing so those real historical messages can be processed by the packet decoder.</p>
 
-        <h3>Packet generation model</h3>
-        <p>The generator uses a <strong>three-state Markov process</strong> to model packet-size regimes.</p>
+        <p>The generated PCAP contains Ethernet, IPv4, UDP, MoldUDP64, and the original length-prefixed NASDAQ ITCH messages. The market-data records come directly from the public historical source; the packet boundaries and network headers are constructed by the generator.</p>
+
+        <blockquote>The generated PCAP is synthetic at the packet-framing level, not at the market-data level.</blockquote>
+
+        <p>This makes the generator a reproducible input-generation utility rather than a requirement of the decoder. If an actual NASDAQ ITCH PCAP is already available, it can be passed directly to <code>pcap_decoder</code>.</p>
+
+        <h3>Packet-size model</h3>
+        <p>The initial generator packed messages until the 1500-byte IP MTU was reached. That produced valid packets but made the distribution heavily concentrated near the maximum size. The current generator instead varies packet-size boundaries with a <strong>three-state Markov process</strong>, introducing both size variation and temporal clustering.</p>
+
         <table>
-          <thead><tr><th>State</th><th>Packet boundary</th><th>Approx. records</th></tr></thead>
+          <thead>
+            <tr><th>State</th><th>Packet boundary</th><th>Approx. records</th></tr>
+          </thead>
           <tbody>
-            <tr><th>Quiet</th><td>114 / 166 bytes</td><td>1–2</td></tr>
-            <tr><th>Mid</th><td>218–582 bytes</td><td>3–10</td></tr>
-            <tr><th>Burst</th><td>1514 bytes</td><td>up to MTU</td></tr>
+            <tr><th>Quiet</th><td>114 or 166 bytes</td><td>1–2 messages</td></tr>
+            <tr><th>Mid</th><td>218–582 bytes</td><td>3–10 messages</td></tr>
+            <tr><th>Burst</th><td>1514 bytes</td><td>Up to MTU</td></tr>
           </tbody>
         </table>
+
         <p>The target long-run state distribution is <strong>60% Quiet / 20% Mid / 20% Burst</strong>.</p>
+
         <table>
-          <thead><tr><th>From → To</th><th>Quiet</th><th>Mid</th><th>Burst</th></tr></thead>
+          <thead>
+            <tr><th>From / To</th><th>Quiet</th><th>Mid</th><th>Burst</th></tr>
+          </thead>
           <tbody>
             <tr><th>Quiet</th><td>0.80</td><td>0.18</td><td>0.02</td></tr>
             <tr><th>Mid</th><td>0.56</td><td>0.28</td><td>0.16</td></tr>
             <tr><th>Burst</th><td>0.04</td><td>0.18</td><td>0.78</td></tr>
           </tbody>
         </table>
-        <p>The matrix gives packet sizes temporal persistence. Transition selection is implemented on a 16-bit integer scale using a lightweight WyRand-based generator.</p>
-        <p>The packet-size boundaries follow the available framing: Ethernet, IPv4, UDP, and MoldUDP64 contribute <strong>62 bytes</strong> of network overhead. Each MoldUDP64 record carries a 2-byte length prefix, and the maximum ITCH message payload is 50 bytes, giving a 52-byte maximum record size.</p>
-        <blockquote>The generated PCAP is a reproducible packet-processing workload built from real historical ITCH messages. The generator models the missing packetization layer rather than reproducing the exact packet boundaries of a historical exchange capture.</blockquote>
+
+        <p>The transition matrix gives packet sizes temporal persistence rather than choosing independent random weights for each packet. It was derived from the target state frequencies using the stationary-distribution relationship of the Markov chain, with persistence selected to produce clustered periods of similar packet sizes. The implementation represents probabilities on a 16-bit integer scale and uses a lightweight WyRand-based generator for state transitions and packet-size selection.</p>
+
+        <h3>Protocol-derived packet boundaries</h3>
+        <p>The packet-size boundaries follow the framing used by the generator. Ethernet, IPv4, UDP, and MoldUDP64 contribute <strong>62 bytes</strong> of network overhead. A maximum-size ITCH message is 50 bytes and its 2-byte length prefix makes the maximum record 52 bytes. This gives the 114-byte one-message boundary and the subsequent 52-byte increments used by the generator.</p>
+
+        <p>Quiet packets use 114 or 166 bytes. Mid packets range from 218 through 582 bytes in 52-byte increments. Burst packets use 1514 bytes, corresponding to a 1500-byte IP MTU plus the 14-byte Ethernet header. The generator then packs actual ITCH records until the selected boundary is reached or the next message would exceed it.</p>
+
+        <h3>Current generator scope</h3>
+        <p>The generator models packet-size variation and clustering. It does <strong>not</strong> attempt to reproduce the exact packet boundaries of a historical exchange capture, and it does not currently inject packet loss or out-of-order sequences. The decoder's bounded sequence buffering can be exercised by a future generator extension that deliberately introduces gaps or reordering.</p>
+
+        <p class="table-note">The packet-size model is motivated by published measurements showing that market-data packet-size distributions vary by exchange and that averages alone do not capture the range of packet sizes present in real feeds.</p>
       </section>
 
       <section class="section">
         <h2>Decoder architecture</h2>
         <div class="architecture-list">
-          <div><strong>Packet processing</strong><span>Reads PCAP records and processes captured Ethernet frames.</span></div>
-          <div><strong>MoldUDP64 sequencing</strong><span>Tracks session and sequence state, retaining ahead-of-sequence packets in a bounded buffer.</span></div>
-          <div><strong>ITCH 5.0 decoding</strong><span>Extracts length-prefixed ITCH records, decodes fields, and performs byte-order conversion.</span></div>
+          <div>
+            <strong>Packet processing</strong>
+            <span>Reads PCAP records and processes captured Ethernet frames while preserving packet boundaries for measurement.</span>
+          </div>
+          <div>
+            <strong>Network and transport processing</strong>
+            <span>Parses Ethernet, IPv4, and UDP framing before handing the payload to the MoldUDP64 layer.</span>
+          </div>
+          <div>
+            <strong>MoldUDP64 sequencing</strong>
+            <span>Tracks session and sequence state and temporarily retains packets that arrive ahead of the expected sequence.</span>
+          </div>
+          <div>
+            <strong>ITCH 5.0 decoding</strong>
+            <span>Extracts length-prefixed ITCH records, identifies message types, decodes fields, and performs byte-order conversion.</span>
+          </div>
+          <div>
+            <strong>Decoded message layer</strong>
+            <span>Separates exchange-message processing from the network representation so downstream consumers can operate on decoded ITCH data.</span>
+          </div>
+          <div>
+            <strong>Level-3 reconstruction</strong>
+            <span>Routes decoded messages either directly through <code>itch_*</code> interfaces or through the <code>Event</code> / <code>reconstruct_market_state()</code> path.</span>
+          </div>
         </div>
       </section>
 
       <section class="section">
         <h2>Reproducibility</h2>
         <p>The project is intentionally build-system-light. The decoder and generator can be compiled directly with a C++23 compiler.</p>
+
         <pre><code>git clone --recursive https://github.com/pankajj6/pcap_feed_decoder.git
 cd pcap_feed_decoder</code></pre>
 
+        <h3>Build the decoder</h3>
+        <pre><code>g++ -std=c++23 -O3 \
+    -Ibase_lob_engine \
+    -Iinclude \
+    src/pcap_decoder.cpp \
+    -o pcap_decoder
+
+./pcap_decoder data/generated/01302020.pcap</code></pre>
+
         <h3>Parser benchmark</h3>
-        <pre><code>g++ -std=c++23 -O3     -DMEASURE_PARSER_LATENCY     -Ibase_lob_engine     -Iinclude     src/pcap_decoder.cpp     -o parser_bench
+        <pre><code>g++ -std=c++23 -O3 \
+    -DMEASURE_PARSER_LATENCY \
+    -Ibase_lob_engine \
+    -Iinclude \
+    src/pcap_decoder.cpp \
+    -o parser_bench
+
+./parser_bench data/generated/01302020.pcap</code></pre>
+
+        <h3>Single-stock parser</h3>
+        <pre><code>g++ -std=c++23 -O3 \
+    -DMEASURE_PARSER_LATENCY \
+    -DSPECIFIC_STOCK_LOCATE=398 \
+    -Ibase_lob_engine \
+    -Iinclude \
+    src/pcap_decoder.cpp \
+    -o parser_bench
 
 ./parser_bench data/generated/01302020.pcap</code></pre>
 
         <h3>Single-stock reconstruction</h3>
-        <pre><code>g++ -std=c++23 -O2     -DMEASURE_RECON_LATENCY     -DSPECIFIC_STOCK_LOCATE=398     -Ibase_lob_engine     -Iinclude     src/pcap_decoder.cpp     -o recon_bench
+        <pre><code>g++ -std=c++23 -O2 \
+    -DMEASURE_RECON_LATENCY \
+    -DSPECIFIC_STOCK_LOCATE=398 \
+    -Ibase_lob_engine \
+    -Iinclude \
+    src/pcap_decoder.cpp \
+    -o recon_bench
+
+./recon_bench data/generated/01302020.pcap</code></pre>
+
+        <h3>Full reconstruction</h3>
+        <pre><code>g++ -std=c++23 -O3 \
+    -DMEASURE_RECON_LATENCY \
+    -Ibase_lob_engine \
+    -Iinclude \
+    src/pcap_decoder.cpp \
+    -o recon_bench
 
 ./recon_bench data/generated/01302020.pcap</code></pre>
 
         <h3>PCAP generation</h3>
-        <pre><code>g++ -std=c++23 -O3     -Iinclude     src/pcap_generator.cpp     -o pcap_generator
+        <pre><code>g++ -std=c++23 -O3 \
+    -Iinclude \
+    src/pcap_generator.cpp \
+    -o pcap_generator
 
-./pcap_generator     data/input/01302020.NASDAQ_ITCH50     data/generated/01302020.pcap</code></pre>
+./pcap_generator \
+    data/input/01302020.NASDAQ_ITCH50 \
+    data/generated/01302020.pcap</code></pre>
+
+        <p>The generator also accepts an optional packet limit:</p>
+        <pre><code>./pcap_generator \
+    data/input/01302020.NASDAQ_ITCH50 \
+    data/generated/01302020.pcap \
+    1000000</code></pre>
+      </section>
+
+      <section class="section">
+        <h2>Repository structure</h2>
+        <pre><code>pcap_feed_decoder/
+├── base_lob_engine/       Git submodule
+├── data/
+│   ├── input/             NASDAQ ITCH binary input
+│   └── generated/         Generated PCAP files
+├── include/
+│   ├── itch_packet_processor.h
+│   └── nasdaq_itch50.h
+├── src/
+│   ├── pcap_decoder.cpp
+│   └── pcap_generator.cpp
+├── .gitignore
+├── .gitmodules
+└── README.md</code></pre>
+        <p>The <code>base_lob_engine</code> directory is maintained as a separate repository and included here as a Git submodule.</p>
       </section>
 
       <section class="section">
         <h2>Scope</h2>
         <ul>
-          <li>NASDAQ TotalView-ITCH 5.0</li>
-          <li>Ethernet / IPv4 / UDP / MoldUDP64 processing</li>
-          <li>MoldUDP64 session and sequence handling</li>
-          <li>bounded out-of-order buffering</li>
-          <li>ITCH message decoding</li>
-          <li>Level-3 order-book reconstruction</li>
+          <li>NASDAQ TotalView-ITCH 5.0 message decoding</li>
+          <li>Ethernet / IPv4 / UDP / MoldUDP64 packet processing</li>
+          <li>MoldUDP64 session and sequence-number handling</li>
+          <li>bounded out-of-order packet buffering</li>
+          <li>Level-3 limit order-book reconstruction</li>
+          <li>direct reconstruction through <code>itch_*</code> interfaces</li>
+          <li>Event-based reconstruction through <code>reconstruct_market_state()</code></li>
+          <li><code>LobState</code> support for derived market-state statistics</li>
           <li>packet-level latency instrumentation</li>
-          <li>reproducible PCAP generation</li>
+          <li>compile-time single-stock benchmarking with <code>SPECIFIC_STOCK_LOCATE</code></li>
+          <li>reproducible PCAP generation from public NASDAQ ITCH binary data</li>
+          <li>optional verbose decoded-message output</li>
         </ul>
-        <p>The current generator models packetization for reproducible benchmarks. It does not reproduce the exact packet boundaries of a historical capture and does not currently inject packet loss or out-of-order sequences into generated traffic.</p>
+        <p>The current generator models packet-size variation and clustering. It does not reproduce the exact packet boundaries of a historical capture and does not currently inject packet loss or out-of-order sequences.</p>
       </section>
 
       <section class="section research-direction">
         <h2>Research direction</h2>
-        <p>The current implementation carries the feed through the complete path to Level-3 reconstruction, providing an end-to-end representation of the market state produced from the captured feed.</p>
-        <p>The longer-term data path is to make the decoder the market-data ingestion layer: remove network and transport framing, decode the exchange messages, and write clean binary message streams for downstream research systems.</p>
+        <p>The current implementation carries the feed through the complete path to Level-3 reconstruction, providing an end-to-end representation of market state produced from the captured exchange feed.</p>
+        <p>The longer-term direction is to make the decoder the market-data ingestion layer: remove network and transport framing, decode the exchange messages, and write clean binary message streams for downstream research systems.</p>
         <div class="pipeline">
           <div>Network capture</div>
           <span>→</span>
@@ -236,10 +422,17 @@ cd pcap_feed_decoder</code></pre>
       <section class="section related">
         <h2>Related infrastructure</h2>
         <div class="related-grid">
-          <div><h3>BaseLOBEngine</h3><p>A reusable C++ limit-order-book and matching-engine core used by the reconstruction and simulation systems.</p></div>
-          <div><h3>TALON</h3><p>A deterministic, latency-aware agent-based market simulator built around discrete-event exchange processing and the same underlying LOB engine.</p></div>
+          <div>
+            <h3>Base LOB Engine</h3>
+            <p>A reusable C++ limit-order-book and matching-engine core used by this decoder for Level-3 reconstruction.</p>
+          </div>
+          <div>
+            <h3>TALON</h3>
+            <p>A deterministic, latency-aware agent-based market simulator that uses the same <code>base_lob_engine</code> for discrete-event exchange matching.</p>
+          </div>
         </div>
       </section>
+
     </main>
   </div>
 
