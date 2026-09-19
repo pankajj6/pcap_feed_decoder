@@ -1,236 +1,221 @@
-/*
- * SMMG-aligned dark-mode override for PCAP Feed Decoder.
- *
- * The light theme remains controlled by assets/style.css.
- * This file only defines the dark-theme surface, text, border and
- * accent behavior so the page follows the SMMG Research dark palette:
- *
- * background  #111317
- * card/hero   #1a1d23
- * secondary   #272c35
- * muted       #2b303b
- * text        #f0f0f0
- * muted text  #999999
- * border      #303541
- * accent      #306ee8
- */
+/* SMMG-aligned dark mode for PCAP Feed Decoder.
+   The desktop dark theme intentionally keeps the top hero strip dark
+   and makes the main project-introduction panel white, matching SMMG.
+*/
 
-[data-theme="dark"] body {
+html[data-theme="dark"] body {
   background: #111317;
   color: #f0f0f0;
 }
 
-/*
- * SMMG dark-mode hero:
- * the navigation/header remains dark, while the main project
- * introduction is a white editorial panel, matching the SMMG site.
- */
-[data-theme="dark"] .hero {
-  color: #262626;
-  background:
-    linear-gradient(
-      to bottom,
-      #111317 0,
-      #111317 92px,
-      #ffffff 92px,
-      #ffffff 100%
-    );
+/* Main hero: dark 78px header strip, then white editorial panel. */
+html[data-theme="dark"] .hero {
+  color: #262626 !important;
+  background: linear-gradient(
+    to bottom,
+    #111317 0,
+    #111317 78px,
+    #ffffff 78px,
+    #ffffff 100%
+  ) !important;
 }
 
-[data-theme="dark"] .hero h1,
-[data-theme="dark"] .hero .project-type {
-  color: #262626;
+html[data-theme="dark"] .hero h1,
+html[data-theme="dark"] .hero .project-type {
+  color: #262626 !important;
 }
 
-[data-theme="dark"] .hero .hero-dek {
-  color: #737373;
+html[data-theme="dark"] .hero .hero-dek {
+  color: #737373 !important;
 }
 
-[data-theme="dark"] .hero .hero-mark,
-[data-theme="dark"] .hero .theme-label,
-[data-theme="dark"] .hero .theme-icon,
-[data-theme="dark"] .theme-toggle {
-  color: #f0f0f0;
+html[data-theme="dark"] .hero .hero-mark {
+  color: #f0f0f0 !important;
 }
 
-[data-theme="dark"] .hero a {
-  color: #262626;
+html[data-theme="dark"] .hero .theme-label,
+html[data-theme="dark"] .hero .theme-icon {
+  color: #f0f0f0 !important;
 }
 
-[data-theme="dark"] .hero a:hover {
-  color: #1754cf;
+html[data-theme="dark"] .hero .hero-links a {
+  color: #262626 !important;
 }
 
-[data-theme="dark"] .hero .hero-separator {
-  color: #737373;
+html[data-theme="dark"] .hero .hero-links a:hover {
+  color: #1754cf !important;
 }
 
-[data-theme="dark"] .theme-toggle {
-  color: #f0f0f0;
-  border-color: #303541;
-  background: transparent;
+html[data-theme="dark"] .hero .hero-separator {
+  color: #737373 !important;
 }
 
-[data-theme="dark"] .layout,
-[data-theme="dark"] .content,
-[data-theme="dark"] .sidebar {
+html[data-theme="dark"] .theme-toggle {
+  color: #f0f0f0 !important;
+  border-color: #303541 !important;
+  background: transparent !important;
+}
+
+html[data-theme="dark"] .layout,
+html[data-theme="dark"] .content,
+html[data-theme="dark"] .sidebar {
   background: #111317;
 }
 
-[data-theme="dark"] .sidebar {
+html[data-theme="dark"] .sidebar {
   color: #f0f0f0;
 }
 
-[data-theme="dark"] .side-label {
+html[data-theme="dark"] .side-label {
   color: #999999;
 }
 
-[data-theme="dark"] .side-title {
+html[data-theme="dark"] .side-title {
   color: #f0f0f0;
 }
 
-[data-theme="dark"] .side-copy {
+html[data-theme="dark"] .side-copy {
   color: #999999;
 }
 
-[data-theme="dark"] .side-rule {
+html[data-theme="dark"] .side-rule {
   background: #303541;
 }
 
-[data-theme="dark"] .section,
-[data-theme="dark"] .content p,
-[data-theme="dark"] .content li {
+html[data-theme="dark"] .section,
+html[data-theme="dark"] .content p,
+html[data-theme="dark"] .content li {
   color: #f0f0f0;
 }
 
-[data-theme="dark"] h2,
-[data-theme="dark"] h3,
-[data-theme="dark"] strong {
+html[data-theme="dark"] h2,
+html[data-theme="dark"] h3,
+html[data-theme="dark"] strong {
   color: #f0f0f0;
 }
 
-[data-theme="dark"] .section-kicker,
-[data-theme="dark"] .section-note,
-[data-theme="dark"] .table-note {
+html[data-theme="dark"] .section-kicker,
+html[data-theme="dark"] .section-note,
+html[data-theme="dark"] .table-note {
   color: #999999;
 }
 
-[data-theme="dark"] a {
+html[data-theme="dark"] a {
   color: #306ee8;
 }
 
-[data-theme="dark"] a:hover {
+html[data-theme="dark"] a:hover {
   color: #306ee8;
 }
 
-[data-theme="dark"] code {
+html[data-theme="dark"] code {
   color: #f0f0f0;
   background: #272c35;
   border-color: #303541;
 }
 
-[data-theme="dark"] pre {
+html[data-theme="dark"] pre {
   color: #f0f0f0;
   background: #1a1d23;
   border-color: #303541;
 }
 
-[data-theme="dark"] table {
+html[data-theme="dark"] table {
   border-color: #303541;
   background: #1a1d23;
 }
 
-[data-theme="dark"] th,
-[data-theme="dark"] td {
+html[data-theme="dark"] th,
+html[data-theme="dark"] td {
   color: #f0f0f0;
   border-color: #303541;
 }
 
-[data-theme="dark"] th {
+html[data-theme="dark"] th {
   background: #272c35;
 }
 
-[data-theme="dark"] td {
+html[data-theme="dark"] td {
   background: #1a1d23;
 }
 
-[data-theme="dark"] .metric-card,
-[data-theme="dark"] .path-grid article,
-[data-theme="dark"] .related-grid > div {
+html[data-theme="dark"] .metric-card,
+html[data-theme="dark"] .path-grid article,
+html[data-theme="dark"] .related-grid > div {
   background: #1a1d23;
   color: #f0f0f0;
   border-color: #303541;
 }
 
-[data-theme="dark"] .metric-value {
+html[data-theme="dark"] .metric-value {
   color: #f0f0f0;
 }
 
-[data-theme="dark"] .metric-unit,
-[data-theme="dark"] .metric-detail {
+html[data-theme="dark"] .metric-unit,
+html[data-theme="dark"] .metric-detail {
   color: #999999;
 }
 
-[data-theme="dark"] .path-label {
+html[data-theme="dark"] .path-label {
   color: #306ee8;
 }
 
-[data-theme="dark"] blockquote {
+html[data-theme="dark"] blockquote {
   color: #f0f0f0;
   background: #1a1d23;
   border-left-color: #306ee8;
 }
 
-[data-theme="dark"] .architecture {
+html[data-theme="dark"] .architecture {
   background: #1a1d23;
   border-color: #303541;
 }
 
-[data-theme="dark"] .architecture-list > div {
+html[data-theme="dark"] .architecture-list > div {
   border-color: #303541;
 }
 
-[data-theme="dark"] .architecture-list strong {
+html[data-theme="dark"] .architecture-list strong {
   color: #f0f0f0;
 }
 
-[data-theme="dark"] .architecture-list span {
+html[data-theme="dark"] .architecture-list span {
   color: #999999;
 }
 
-[data-theme="dark"] .pipeline > div {
+html[data-theme="dark"] .pipeline > div {
   background: #1a1d23;
   color: #f0f0f0;
   border-color: #303541;
 }
 
-[data-theme="dark"] .pipeline span {
+html[data-theme="dark"] .pipeline span {
   color: #306ee8;
 }
 
-[data-theme="dark"] .footer {
+html[data-theme="dark"] .footer {
   background: #111317;
   color: #f0f0f0;
   border-top-color: #303541;
 }
 
-[data-theme="dark"] .footer span {
+html[data-theme="dark"] .footer span {
   color: #999999;
 }
 
-[data-theme="dark"] .footer strong {
+html[data-theme="dark"] .footer strong {
   color: #f0f0f0;
 }
 
 @media (max-width: 760px) {
-  [data-theme="dark"] .hero {
-    background:
-      linear-gradient(
-        to bottom,
-        #111317 0,
-        #111317 72px,
-        #ffffff 72px,
-        #ffffff 100%
-      );
+  html[data-theme="dark"] .hero {
+    background: linear-gradient(
+      to bottom,
+      #111317 0,
+      #111317 60px,
+      #ffffff 60px,
+      #ffffff 100%
+    ) !important;
   }
 }
+
