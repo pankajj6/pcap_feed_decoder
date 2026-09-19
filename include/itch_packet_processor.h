@@ -110,7 +110,12 @@ struct alignas(64) ParserState {
 #pragma pack(pop)
 
 uint64_t process_packet(void* pkt_ptr , ParserState& ps){
-    
+  
+    // start the clock if macro on
+     #if defined(MEASURE_RECON_LATENCY) || defined(MEASURE_PARSER_LATENCY)
+       auto t0 = std::chrono::steady_clock::now() ; 
+     #endif
+
     // parser engine
     auto& parser_engine = ps.engine ;
     
@@ -143,10 +148,6 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
     msg_count = std::byteswap(msg_count) ;
     ptr += 2;  
     
-    #if defined(MEASURE_RECON_LATENCY) || defined(MEASURE_PARSER_LATENCY)
-    auto t0 = std::chrono::steady_clock::now() ; 
-    auto total_msg = msg_count ;
-    #endif
     
     // process . 
     while (msg_count != 0 ){
@@ -183,7 +184,7 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
       }
       #endif
 
-      // increment count (by default all tickers, but in specific locate macro on, it will be only about that ticker.)
+      // increment count (by default all tickers, but in specific locate case, it will only about that ticker.)
       ps.total_messages++ ;
 
       switch(msg_type){
@@ -227,15 +228,15 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
           char side = msg.buy_sell_indicator ;
           
           #if !defined(MEASURE_PARSER_LATENCY)
-          // runs by default. off when macro on.
-          if (Mode == DecodeMode::Direct){
-            parser_engine.itch_add_order(msg.stock_locate, msg.order_reference_number , msg.price, msg.shares, side);
-          }
-          else {
-            OrderAdd itch = {msg.order_reference_number, msg.price, msg.shares, side} ;
-            Event event = {time_ns, 0 , 0 , EventType::ITCH, MsgType::OrderAdd, msg.stock_locate, {itch} } ; 
-            reconstruct_market_state<EngineMode::Parser>(parser_engine, event) ;
-          }
+            // runs by default. skipped when macro on.
+            if (Mode == DecodeMode::Direct){
+              parser_engine.itch_add_order(msg.stock_locate, msg.order_reference_number , msg.price, msg.shares, side);
+            }
+            else {
+              OrderAdd itch = {msg.order_reference_number, msg.price, msg.shares, side} ;
+              Event event = {time_ns, 0 , 0 , EventType::ITCH, MsgType::OrderAdd, msg.stock_locate, {itch} } ; 
+              reconstruct_market_state<EngineMode::Parser>(parser_engine, event) ;
+            }
           #endif
           
           ptr += msg_len ;
@@ -260,15 +261,15 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
           char side = msg.buy_sell_indicator ;
           
           #if !defined(MEASURE_PARSER_LATENCY)
-
-          if (Mode == DecodeMode::Direct){
-            parser_engine.itch_add_order( msg.stock_locate , msg.order_reference_number , msg.price, msg.shares , side);
-          }
-          else {
-            OrderAdd itch = {msg.order_reference_number, msg.price, msg.shares, side} ;
-            Event event = {time_ns, 0 , 0 , EventType::ITCH, MsgType::OrderAdd, msg.stock_locate, {itch} } ; 
-            reconstruct_market_state<EngineMode::Parser>(parser_engine, event) ;
-          }
+            // conditional processing
+            if (Mode == DecodeMode::Direct){
+              parser_engine.itch_add_order( msg.stock_locate , msg.order_reference_number , msg.price, msg.shares , side);
+            }
+            else {
+              OrderAdd itch = {msg.order_reference_number, msg.price, msg.shares, side} ;
+              Event event = {time_ns, 0 , 0 , EventType::ITCH, MsgType::OrderAdd, msg.stock_locate, {itch} } ; 
+              reconstruct_market_state<EngineMode::Parser>(parser_engine, event) ;
+            }
           #endif
 
           ptr += msg_len ;
@@ -293,15 +294,15 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
           msg.executed_shares = std::byteswap(msg.executed_shares) ;
           
           #if !defined(MEASURE_PARSER_LATENCY)
-
-          if (Mode == DecodeMode::Direct){
-            parser_engine.itch_execute_order(msg.stock_locate , msg.order_reference_number , msg.executed_shares);
-          }
-          else {
-            OrderExecuted itch = {msg.order_reference_number, msg.executed_shares} ;
-            Event event = {time_ns, 0 , 0 , EventType::ITCH, MsgType::OrderExec, msg.stock_locate, {itch} } ; 
-            reconstruct_market_state<EngineMode::Parser>(parser_engine, event) ;
-          }
+            // conditional processing
+            if (Mode == DecodeMode::Direct){
+              parser_engine.itch_execute_order(msg.stock_locate , msg.order_reference_number , msg.executed_shares);
+            }
+            else {
+              OrderExecuted itch = {msg.order_reference_number, msg.executed_shares} ;
+              Event event = {time_ns, 0 , 0 , EventType::ITCH, MsgType::OrderExec, msg.stock_locate, {itch} } ; 
+              reconstruct_market_state<EngineMode::Parser>(parser_engine, event) ;
+            }
           #endif
 
           ptr += msg_len ;
@@ -331,15 +332,15 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
           msg.cancelled_shares = std::byteswap(msg.cancelled_shares) ;
           
           #if !defined(MEASURE_PARSER_LATENCY)
-
-          if (Mode == DecodeMode::Direct){
-            parser_engine.itch_reduce_order(msg.stock_locate, msg.order_reference_number , msg.cancelled_shares);
-          }
-          else {
-            OrderCancel itch = {msg.order_reference_number, msg.cancelled_shares} ;
-            Event event = {time_ns, 0 , 0 , EventType::ITCH, MsgType::OrderCancel, msg.stock_locate, {itch} } ; 
-            reconstruct_market_state<EngineMode::Parser>(parser_engine, event) ;
-          }
+            // conditional processing
+            if (Mode == DecodeMode::Direct){
+              parser_engine.itch_reduce_order(msg.stock_locate, msg.order_reference_number , msg.cancelled_shares);
+            }
+            else {
+              OrderCancel itch = {msg.order_reference_number, msg.cancelled_shares} ;
+              Event event = {time_ns, 0 , 0 , EventType::ITCH, MsgType::OrderCancel, msg.stock_locate, {itch} } ; 
+              reconstruct_market_state<EngineMode::Parser>(parser_engine, event) ;
+            }
           #endif
 
           ptr += msg_len ;
@@ -361,19 +362,20 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
           msg.order_reference_number = std::byteswap(msg.order_reference_number) ;
           
           #if !defined(MEASURE_PARSER_LATENCY)
-          if (Mode == DecodeMode::Direct){
-            parser_engine.itch_delete_order(msg.stock_locate, msg.order_reference_number);
-          }
-          else {
-            // get total shares for full cancel (delete). 
-            auto idx = find_order_index(parser_engine, msg.order_reference_number) ;
-            auto& ord = parser_engine.pool[idx] ;
-            auto shares = ord.shares ;
-            
-            OrderCancel itch = {msg.order_reference_number, shares } ;
-            Event event = {time_ns, 0 , 0 , EventType::ITCH, MsgType::OrderCancel, msg.stock_locate, {itch} } ; 
-            reconstruct_market_state<EngineMode::Parser>(parser_engine, event) ;
-          }
+            // conditional processing
+            if (Mode == DecodeMode::Direct){
+              parser_engine.itch_delete_order(msg.stock_locate, msg.order_reference_number);
+            }
+            else {
+              // get total shares for full cancel (delete). 
+              auto idx = find_order_index(parser_engine, msg.order_reference_number) ;
+              auto& ord = parser_engine.pool[idx] ;
+              auto shares = ord.shares ;
+              
+              OrderCancel itch = {msg.order_reference_number, shares } ;
+              Event event = {time_ns, 0 , 0 , EventType::ITCH, MsgType::OrderCancel, msg.stock_locate, {itch} } ; 
+              reconstruct_market_state<EngineMode::Parser>(parser_engine, event) ;
+            }
           #endif
 
           ptr += msg_len ;
@@ -399,15 +401,15 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
           msg.shares = std::byteswap(msg.shares) ;
           
           #if !defined(MEASURE_PARSER_LATENCY)
-          // runs by default. off when macro on.
-          if (Mode == DecodeMode::Direct){
-            parser_engine.itch_replace_order(msg.stock_locate , msg.original_order_reference_number , msg.new_order_reference_number , msg.price , msg.shares );
-          }
-          else {  
-            OrderReplace itch = {msg.original_order_reference_number, msg.new_order_reference_number, msg.price, msg.shares } ;
-            Event event = {time_ns, 0 , 0 , EventType::ITCH, MsgType::OrderReplace, msg.stock_locate, {itch} } ; 
-            reconstruct_market_state<EngineMode::Parser>(parser_engine, event) ;
-          }
+            // conditional processing
+            if (Mode == DecodeMode::Direct){
+              parser_engine.itch_replace_order(msg.stock_locate , msg.original_order_reference_number , msg.new_order_reference_number , msg.price , msg.shares );
+            }
+            else {  
+              OrderReplace itch = {msg.original_order_reference_number, msg.new_order_reference_number, msg.price, msg.shares } ;
+              Event event = {time_ns, 0 , 0 , EventType::ITCH, MsgType::OrderReplace, msg.stock_locate, {itch} } ; 
+              reconstruct_market_state<EngineMode::Parser>(parser_engine, event) ;
+            }
           #endif
 
           ptr += msg_len ;
@@ -462,13 +464,13 @@ uint64_t process_packet(void* pkt_ptr , ParserState& ps){
   
     }
     
-  #if defined(MEASURE_RECON_LATENCY) || defined(MEASURE_PARSER_LATENCY)
-  auto t1 = std::chrono::steady_clock::now();
-  if (total_msg > 0){
-    auto t = (std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count())/total_msg ;
-    ps.message_latency_ns.push_back(t);
-  }
-  #endif
+  
+   #if defined(MEASURE_RECON_LATENCY) || defined(MEASURE_PARSER_LATENCY)
+     //log the overall time spend on processing the packet
+     auto t1 = std::chrono::steady_clock::now();
+     auto t = (std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count()) ;
+     ps.message_latency_ns.push_back(t);
+   #endif
   
   ps.total_packets +=1 ;
     
