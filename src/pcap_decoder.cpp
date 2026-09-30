@@ -1,3 +1,8 @@
+// Copyright (C) 2026 Pankaj Jat
+// This file is part of pcap_feed_decoder. 
+// Licensed under the GNU AGPL-3.0 , See LICENSE file in the project root for details.
+
+
 #include <iostream>
 #include <cstdint>
 #include <unordered_set>
