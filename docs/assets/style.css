@@ -1,6 +1,5 @@
-
 /* XAD — Microstructure Automata Dynamics
-   Permanent monochrome theme */
+   Permanent monochrome theme adapted from the XAD website. */
 
 :root {
   color-scheme: dark;
@@ -16,6 +15,8 @@
   --font: 'Space Grotesk', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   --mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
 }
+
+/* Base */
 
 * {
   box-sizing: border-box;
