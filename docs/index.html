@@ -49,7 +49,7 @@
       <section class="section intro">
         <h2>Overview</h2>
         <p><strong>PCAP Feed Decoder</strong> is a market-data processing system for working from captured network traffic to decoded exchange messages and reconstructed Level-3 order-book state.</p>
-        <p>The current implementation targets <strong>NASDAQ TotalView-ITCH 5.0</strong> and covers Ethernet, IPv4, UDP, MoldUDP64 session and sequence handling, ITCH message decoding, packet-level benchmarking, and Level-3 reconstruction.</p>
+        <p>The current implementation targets <strong>NASDAQ TotalView-ITCH 5.0</strong> and covers packet-capture ingestion, MoldUDP64 session and sequence handling, ITCH message decoding, packet-level benchmarking, and Level-3 reconstruction.</p>
         <p>The decoder can be used directly with an existing ITCH PCAP. An included <code>pcap_generator</code> is provided for cases where only the publicly available historical ITCH binary data is available.</p>
         <p>The project is an independent infrastructure developed and owned by Pankaj Jat, utilized by <strong>XAD (Microstructure Automata Dynamics)</strong> under an AGPL-3.0 licensing framework for market microstructure and deterministic simulation.</p>
       </section>
@@ -61,16 +61,16 @@
 
         <div class="architecture-list">
           <div>
-            <strong>Packet processing</strong>
-            <span>Reads captured network packets and processes Ethernet, IPv4, UDP, and MoldUDP64 framing.</span>
+            <strong>Packet ingestion and sequencing</strong>
+            <span>Reads captured packets, extracts the MoldUDP64 payload, and handles session and sequence state.</span>
           </div>
           <div>
             <strong>Exchange-message decoding</strong>
-            <span>Extracts length-prefixed NASDAQ ITCH 5.0 messages, decodes their fields, and performs the required byte-order conversion.</span>
+            <span>Extracts length-prefixed NASDAQ ITCH 5.0 messages, decodes their fields, and performs byte-order conversion.</span>
           </div>
           <div>
             <strong>Market-state reconstruction</strong>
-            <span>Passes decoded exchange messages into Level-3 order-book processing when reconstruction is enabled.</span>
+            <span>Routes decoded exchange messages into Level-3 order-book processing through the supported reconstruction paths.</span>
           </div>
         </div>
       </section>
@@ -78,10 +78,10 @@
       <section class="section">
         <h2>System overview</h2>
         <figure class="architecture">
-          <img src="assets/architecture.svg" alt="PCAP, MoldUDP64, ITCH 5.0, and Level-3 market-state processing pipeline">
+          <img src="assets/architecture.svg" alt="PCAP-to-ITCH decoding and Level-3 market-state reconstruction pipeline">
         </figure>
 
-        <p>The processing path is deliberately layered. A packet is first treated as a network object, then reduced through its transport and session framing until the contained ITCH records are available to the exchange-message decoder. The decoded messages can then terminate at the parser benchmark or continue into one of the Level-3 reconstruction paths.</p>
+        <p>The processing path is deliberately layered. Captured packets are processed to extract their MoldUDP64 payloads, after which session sequencing and ITCH record extraction take place. Decoded messages can terminate at the parser benchmark or continue into one of the Level-3 reconstruction paths.</p>
 
         <div class="architecture-list">
           <div>
@@ -89,8 +89,8 @@
             <span>Reads the captured Ethernet frame while preserving packet boundaries for packet-level throughput and latency measurement.</span>
           </div>
           <div>
-            <strong>2. Network and transport</strong>
-            <span>Processes Ethernet, IPv4, and UDP headers to reach the MoldUDP64 payload.</span>
+            <strong>2. Packet framing</strong>
+            <span>Extracts the UDP payload containing the MoldUDP64 data.</span>
           </div>
           <div>
             <strong>3. MoldUDP64 session state</strong>
@@ -98,7 +98,7 @@
           </div>
           <div>
             <strong>4. ITCH 5.0 records</strong>
-            <span>Reads each length-prefixed ITCH record, identifies its message type, decodes its fields, and performs byte-order conversion.</span>
+            <span>Extracts length-prefixed ITCH records, identifies message types, decodes fields and performs byte-order conversion.</span>
           </div>
           <div>
             <strong>5. Decoded exchange messages</strong>
@@ -215,7 +215,7 @@
         <h2>PCAP generation</h2>
         <p>Public historical NASDAQ TotalView-ITCH data is distributed as length-prefixed ITCH binary messages rather than original network captures. The generator reconstructs the missing network framing so those real historical messages can be processed by the packet decoder.</p>
 
-        <p>The generated PCAP contains Ethernet, IPv4, UDP, MoldUDP64, and the original length-prefixed NASDAQ ITCH messages. The market-data records come directly from the public historical source; the packet boundaries and network headers are constructed by the generator.</p>
+        <p>The generator constructs Ethernet, IPv4, UDP and MoldUDP64 framing around the original length-prefixed NASDAQ ITCH messages. The market-data records come directly from the public historical source; the packet boundaries and network headers are constructed by the generator.</p>
 
         <blockquote>The generated PCAP is synthetic at the packet-framing level, not at the market-data level.</blockquote>
 
@@ -265,27 +265,23 @@
         <h2>Decoder architecture</h2>
         <div class="architecture-list">
           <div>
-            <strong>Packet processing</strong>
-            <span>Reads PCAP records and processes captured Ethernet frames while preserving packet boundaries for measurement.</span>
+            <strong>PCAP ingestion</strong>
+            <span>Reads captured packets while preserving packet boundaries for packet-level measurement. </span>
           </div>
           <div>
-            <strong>Network and transport processing</strong>
-            <span>Parses Ethernet, IPv4, and UDP framing before handing the payload to the MoldUDP64 layer.</span>
+            <strong>Session and sequence management</strong>
+            <span>Handles MoldUDP64 session state, sequence tracking, and bounded buffering of out-of-order packets.</span>
           </div>
           <div>
             <strong>MoldUDP64 sequencing</strong>
             <span>Tracks session and sequence state and temporarily retains packets that arrive ahead of the expected sequence.</span>
           </div>
           <div>
-            <strong>ITCH 5.0 decoding</strong>
-            <span>Extracts length-prefixed ITCH records, identifies message types, decodes fields, and performs byte-order conversion.</span>
+            <strong>ITCH message decoding</strong>
+            <span>Extracts length-prefixed NASDAQ ITCH 5.0 records, decodes message fields, and performs byte-order conversion.</span>
           </div>
           <div>
-            <strong>Decoded message layer</strong>
-            <span>Separates exchange-message processing from the network representation so downstream consumers can operate on decoded ITCH data.</span>
-          </div>
-          <div>
-            <strong>Level-3 reconstruction</strong>
+            <strong>Exchange-state reconstruction</strong>
             <span>Routes decoded messages either directly through <code>itch_*</code> interfaces or through the <code>Event</code> / <code>reconstruct_market_state()</code> path.</span>
           </div>
         </div>
@@ -388,9 +384,9 @@ cd pcap_feed_decoder</code></pre>
       <section class="section">
         <h2>Scope</h2>
         <ul>
-          <li>NASDAQ TotalView-ITCH 5.0 message decoding</li>
-          <li>Ethernet / IPv4 / UDP / MoldUDP64 packet processing</li>
-          <li>MoldUDP64 session and sequence-number handling</li>
+          <li>NASDAQ TotalView-ITCH 5.0 message extraction and decoding</li>
+          <li>PCAP ingestion and MoldUDP64 payload extraction</li>
+          <li>MoldUDP64 session and sequence-number management</li>
           <li>bounded out-of-order packet buffering</li>
           <li>Level-3 limit order-book reconstruction</li>
           <li>direct reconstruction through <code>itch_*</code> interfaces</li>
@@ -407,7 +403,7 @@ cd pcap_feed_decoder</code></pre>
       <section class="section research-direction">
         <h2>Research direction</h2>
         <p>The current implementation carries the feed through the complete path to Level-3 reconstruction, providing an end-to-end representation of market state produced from the captured exchange feed.</p>
-        <p>The longer-term direction is to make the decoder the market-data ingestion layer: remove network and transport framing, decode the exchange messages, and write clean binary message streams for downstream research systems.</p>
+        <p>The longer-term direction is to establish the decoder as a dedicated market-data ingestion layer, extracting and decoding exchange messages into clean binary streams for downstream reconstruction, feature extraction, and research systems.</p>
         <div class="pipeline">
           <div>Network capture</div>
           <span>→</span>
