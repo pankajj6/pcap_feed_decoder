@@ -26,18 +26,18 @@ deterministic simulation.
 
 ## Table of Contents
 
--   [Why this Project](#why-this-project)
--   [Architecture](#architecture)
--   [Performance](#performance)
--   [PCAP Generator](#pcap-generator)
-    -   [Why a PCAP Generator?](#why-a-pcap-generator)
-    -   [Packet Size Model](#packet-size-model)
--   [Decode Modes](#decode-modes)
--   [Clone](#clone)
--   [Usage](#usage)
--   [Repository Structure](#repository-structure)
--   [Features](#features)
--   [Related Projects](#related-projects)
+- [Why this Project](#why-this-project)
+- [Architecture](#architecture)
+- [Performance](#performance)
+- [PCAP Generator](#pcap-generator)
+  - [Why a PCAP Generator?](#why-a-pcap-generator)
+  - [Packet Size Model](#packet-size-model)
+- [Decode Modes](#decode-modes)
+- [Clone](#clone)
+- [Usage](#usage)
+- [Repository Structure](#repository-structure)
+- [Features](#features)
+- [Related Projects](#related-projects)
 
 ------------------------------------------------------------------------
 
@@ -54,15 +54,14 @@ market-data captures.
 
 The decoder currently provides:
 
--   PCAP ingestion and MoldUDP64 payload extraction
--   MoldUDP64 session and sequence-number management
--   Bounded out-of-order packet buffering
--   NASDAQ TotalView-ITCH 5.0 message extraction and decoding
--   Field extraction and byte-order conversion
--   Level-3 limit order book reconstruction
--   Separate benchmarking of message decoding and full book
-    reconstruction
--   Per-stock benchmarking through a compile-time stock-locate filter
+- PCAP ingestion and MoldUDP64 payload extraction
+- MoldUDP64 session and sequence-number management
+- Bounded out-of-order packet buffering
+- NASDAQ TotalView-ITCH 5.0 message extraction and decoding
+- Field extraction and byte-order conversion
+- Level-3 limit order book reconstruction
+- Separate benchmarking of message decoding and full book reconstruction
+- Per-stock benchmarking through a compile-time stock-locate filter
 
 The decoder can be used directly with an existing PCAP capture. The
 included `pcap_generator` is an optional utility for cases where a
@@ -155,7 +154,7 @@ required by the decoder.
 
 # Performance
 
-Benchmarks were run on a **15 million packet PCAP (\~7 GB)** generated
+Benchmarks were run on a **15 million packet PCAP (~7 GB)** generated
 from the publicly available NASDAQ TotalView-ITCH binary data. The
 capture contains **190,907,472 ITCH messages** across all active
 symbols.
@@ -170,22 +169,22 @@ latency**, not per-ITCH-message latency.
 `MEASURE_PARSER_LATENCY` benchmarks packet ingestion and ITCH message
 decoding across the complete feed without Level-3 order-book updates.
 
-**\~96.0 million ITCH messages/sec**
+**~96.0 million ITCH messages/sec**
 
 **P50: 40 ns · P95: 291 ns · P99: 451 ns**
 
-  Metric                              Result
-  --------------------- --------------------
-  Packets/sec                 \~7.54 million
-  ITCH messages/sec       **\~96.0 million**
-  Total packets                   15,000,000
-  Total ITCH messages            190,907,472
-  P50                              **40 ns**
-  P95                             **291 ns**
-  P99                             **451 ns**
+| Metric              |            Result |
+|:--------------------|------------------:|
+| Packets/sec         |     ~7.54 million |
+| ITCH messages/sec   | **~96.0 million** |
+| Total packets       |        15,000,000 |
+| Total ITCH messages |       190,907,472 |
+| P50                 |         **40 ns** |
+| P95                 |        **291 ns** |
+| P99                 |        **451 ns** |
 
-Repeated runs on the same capture produced approximately **94--96
-million ITCH messages/sec**.
+Repeated runs on the same capture produced approximately **94--96 million
+ITCH messages/sec**.
 
 ## Single-Stock Parser
 
@@ -194,30 +193,30 @@ while continuing to traverse the complete PCAP.
 
 For the benchmark capture, stock locate `398` corresponds to **AMZN**.
 
-  Metric                                  Result
-  ---------------------------- -----------------
-  Packets/sec                    \~12.70 million
-  Selected ITCH messages/sec       **\~215,785**
-  Total packets traversed             15,000,000
-  Selected ITCH messages                 254,926
-  P50                                  **20 ns**
-  P95                                 **100 ns**
-  P99                                 **250 ns**
+| Metric                     |         Result |
+|:---------------------------|---------------:|
+| Packets/sec                | ~12.70 million |
+| Selected ITCH messages/sec |   **~215,785** |
+| Total packets traversed    |     15,000,000 |
+| Selected ITCH messages     |        254,926 |
+| P50                        |      **20 ns** |
+| P95                        |     **100 ns** |
+| P99                        |     **250 ns** |
 
 ## Single-Stock Level-3 Reconstruction
 
 `MEASURE_RECON_LATENCY` enables Level-3 reconstruction for the selected
 stock.
 
-  Metric                                  Result
-  ---------------------------- -----------------
-  Packets/sec                    \~11.01 million
-  Selected ITCH messages/sec       **\~187,146**
-  Total packets traversed             15,000,000
-  Selected ITCH messages                 254,926
-  P50                                  **20 ns**
-  P95                                  **91 ns**
-  P99                                 **652 ns**
+| Metric                     |         Result |
+|:---------------------------|---------------:|
+| Packets/sec                | ~11.01 million |
+| Selected ITCH messages/sec |   **~187,146** |
+| Total packets traversed    |     15,000,000 |
+| Selected ITCH messages     |        254,926 |
+| P50                        |      **20 ns** |
+| P95                        |      **91 ns** |
+| P99                        |     **652 ns** |
 
 ## Full-Feed Reconstruction --- Stress Test
 
@@ -228,19 +227,19 @@ This represents the substantially heavier workload of maintaining
 thousands of order-level books while processing the complete market-data
 stream.
 
-**\~5.59 million ITCH messages/sec**
+**~5.59 million ITCH messages/sec**
 
 **P50: 592 ns · P95: 9.06 µs · P99: 11.25 µs**
 
-  Metric                              Result
-  --------------------- --------------------
-  Packets/sec                      \~438,947
-  ITCH messages/sec       **\~5.59 million**
-  Total packets                   15,000,000
-  Total ITCH messages            190,907,472
-  P50                             **592 ns**
-  P95                            **9.06 µs**
-  P99                           **11.25 µs**
+| Metric              |            Result |
+|:--------------------|------------------:|
+| Packets/sec         |          ~438,947 |
+| ITCH messages/sec   | **~5.59 million** |
+| Total packets       |        15,000,000 |
+| Total ITCH messages |       190,907,472 |
+| P50                 |        **592 ns** |
+| P95                 |       **9.06 µs** |
+| P99                 |      **11.25 µs** |
 
 The higher packet-processing latency reflects the amount of work
 performed for each packet when Level-3 reconstruction is enabled across
@@ -265,11 +264,11 @@ as a PCAP file that can be consumed directly by `pcap_decoder`.
 
 The generator constructs:
 
--   Ethernet headers
--   IPv4 headers
--   UDP headers
--   MoldUDP64 headers
--   The original length-prefixed NASDAQ ITCH messages
+- Ethernet headers
+- IPv4 headers
+- UDP headers
+- MoldUDP64 headers
+- The original length-prefixed NASDAQ ITCH messages
 
 The ITCH messages are taken directly from the publicly available NASDAQ
 historical data. The packet boundaries and network headers are
@@ -299,11 +298,11 @@ packet independently or filling every packet to the MTU.
 
 The three states are:
 
-  State              Packet size Target message density
-  ----------- ------------------ ------------------------
-  **Quiet**     114 or 166 bytes 1--2 messages
-  **Mid**         218--582 bytes 3--10 messages
-  **Burst**           1514 bytes Up to MTU
+| State     | Packet size      | Target message density |
+|:----------|:-----------------|:-----------------------|
+| **Quiet** | 114 or 166 bytes | 1--2 messages           |
+| **Mid**   | 218--582 bytes    | 3--10 messages          |
+| **Burst** | 1514 bytes       | Up to MTU              |
 
 The packet boundaries are derived from the protocol structure. The
 generated frame reserves 62 bytes for the Ethernet, IPv4, UDP and
@@ -316,9 +315,9 @@ increments used by the generator.
 
 The target long-run state distribution is:
 
--   **60% Quiet**
--   **20% Mid**
--   **20% Burst**
+- **60% Quiet**
+- **20% Mid**
+- **20% Burst**
 
 The choice of a non-uniform packet-size distribution is motivated by
 published measurements of market-data packet captures. In particular,
@@ -329,11 +328,11 @@ the range of packet sizes present in real feeds.
 
 The transition probabilities used by the generator are:
 
-  From / To     Quiet    Mid   Burst
-  ----------- ------- ------ -------
-  **Quiet**      0.80   0.18    0.02
-  **Mid**        0.56   0.28    0.16
-  **Burst**      0.04   0.18    0.78
+| From / To | Quiet |  Mid | Burst |
+|:----------|------:|-----:|------:|
+| **Quiet** |  0.80 | 0.18 |  0.02 |
+| **Mid**   |  0.56 | 0.28 |  0.16 |
+| **Burst** |  0.04 | 0.18 |  0.78 |
 
 These values are not independent random weights chosen for each packet.
 They are the transition probabilities of the Markov process required to
@@ -394,21 +393,10 @@ test cases for that decoder functionality.
 The decoder provides two Level-3 reconstruction paths built on the same
 underlying `BaseLOBEngine`.
 
-  -----------------------------------------------------------------------
-  Mode                                Description
-  ----------------------------------- -----------------------------------
-  **Direct**                          Decodes each ITCH message and
-                                      applies it directly through the
-                                      engine's `itch_*` interfaces.
-
-  **MarketState**                     Converts decoded ITCH messages into
-                                      the internal `Event` representation
-                                      and replays them through
-                                      `reconstruct_market_state()`. This
-                                      path also supports maintaining
-                                      `LobState` derived market
-                                      statistics.
-  -----------------------------------------------------------------------
+| Mode            | Description                                                                                                                                                                                              |
+|:----------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Direct**      | Decodes each ITCH message and applies it directly through the engine's `itch_*` interfaces.                                                                                                              |
+| **MarketState** | Converts decoded ITCH messages into the internal `Event` representation and replays them through `reconstruct_market_state()`. This path also supports maintaining `LobState` derived market statistics. |
 
 Both reconstruction modes operate on the same decoded ITCH feed and
 reconstruct the Level-3 order book.
@@ -696,30 +684,30 @@ not required. The PCAP can be passed directly to `pcap_decoder`.
 
 # Features
 
--   NASDAQ TotalView-ITCH 5.0 message extraction and decoding
--   PCAP ingestion and MoldUDP64 payload extraction
--   MoldUDP64 session and sequence-number management
--   Bounded out-of-order packet buffering
--   Level-3 limit order book reconstruction
--   Direct reconstruction through `itch_*` interfaces
--   Event-based reconstruction through `reconstruct_market_state()`
--   `LobState` support for derived market-state statistics
--   Separate parser and reconstruction benchmarks
--   Compile-time single-stock benchmarking with `SPECIFIC_STOCK_LOCATE`
--   Reproducible PCAP generation from public NASDAQ ITCH binary data
--   Optional verbose decoded-message output
+- NASDAQ TotalView-ITCH 5.0 message extraction and decoding
+- PCAP ingestion and MoldUDP64 payload extraction
+- MoldUDP64 session and sequence-number management
+- Bounded out-of-order packet buffering
+- Level-3 limit order book reconstruction
+- Direct reconstruction through `itch_*` interfaces
+- Event-based reconstruction through `reconstruct_market_state()`
+- `LobState` support for derived market-state statistics
+- Separate parser and reconstruction benchmarks
+- Compile-time single-stock benchmarking with `SPECIFIC_STOCK_LOCATE`
+- Reproducible PCAP generation from public NASDAQ ITCH binary data
+- Optional verbose decoded-message output
 
 ------------------------------------------------------------------------
 
 # Related Projects
 
--   [**Base LOB Engine**](https://github.com/pankajj6/base_lob_engine):
-    The underlying C++ limit order book and matching engine used by this
-    decoder for Level-3 reconstruction.
--   [**TALON**](https://github.com/pankajj6/talon-kernel): A
-    deterministic, latency-aware agent-based market simulator that
-    utilizes the same `base_lob_engine` for discrete-event exchange
-    matching.
+- [**Base LOB Engine**](https://github.com/pankajj6/base_lob_engine):
+  The underlying C++ limit order book and matching engine used by this
+  decoder for Level-3 reconstruction.
+- [**TALON**](https://github.com/pankajj6/talon-kernel): A
+  deterministic, latency-aware agent-based market simulator that
+  utilizes the same `base_lob_engine` for discrete-event exchange
+  matching.
 
 ------------------------------------------------------------------------
 
