@@ -50,7 +50,7 @@
         <h2>Overview</h2>
         <p><strong>PCAP Feed Decoder</strong> is a market-data processing system for working from captured network traffic to decoded exchange messages and reconstructed Level-3 order-book state.</p>
         <p>The current implementation targets <strong>NASDAQ TotalView-ITCH 5.0</strong> and covers packet-capture ingestion, MoldUDP64 session and sequence handling, ITCH message decoding, packet-level benchmarking, and Level-3 reconstruction.</p>
-        <p>The decoder can be used directly with an existing ITCH PCAP. An included <code>pcap_generator</code> is provided for cases where only the publicly available historical ITCH binary data is available.</p>
+        <p>The decoder can be used directly with an existing ITCH PCAP. An optional <code>pcap_generator</code> is also included for users who do not have an original packet capture but want to explore the decoder, experiment with its packet-processing pipeline, or run reproducible tests and benchmarks. It constructs PCAP inputs using real historical ITCH messages from publicly available length-prefixed data.</p>
         <p>The project is an independent infrastructure developed and owned by Pankaj Jat, utilized by <strong>XAD (Microstructure Automata Dynamics)</strong> under an AGPL-3.0 licensing framework for market microstructure and deterministic simulation.</p>
       </section>
 
