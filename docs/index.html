@@ -111,7 +111,7 @@
           </div>
           <div>
             <strong>6. Downstream processing</strong>
-            <span>Messages can stop at the parser benchmark, enter the direct reconstruction path, or be converted into the internal Event representation for MarketState reconstruction.</span>
+            <span>Decoded messages can stop at the parser benchmark, enter the direct reconstruction path, or be converted into the internal Event representation for MarketState reconstruction. The reconstruction paths apply these events to maintain Level-3 order-book state directly in memory.</span>
           </div>
         </div>
 
@@ -217,8 +217,8 @@
       </section>
 
       <section class="section">
-        <h2>PCAP generation</h2>
-        <p>Public historical NASDAQ TotalView-ITCH data is distributed as length-prefixed ITCH binary messages rather than original network captures. The generator reconstructs the missing network framing so those real historical messages can be processed by the packet decoder.</p>
+        <h2>PCAP generation — benchmark input utility</h2>
+        <p>The repository includes an optional PCAP generator developed to create reproducible packet-capture workloads for testing and benchmarking. Original NASDAQ ITCH packet captures were not available during the initial development and performance evaluation, so the generator constructs network framing around real historical ITCH messages obtained from publicly available length-prefixed data.</p>
 
         <p>The generator constructs Ethernet, IPv4, UDP and MoldUDP64 framing around the original length-prefixed NASDAQ ITCH messages. The market-data records come directly from the public historical source; the packet boundaries and network headers are constructed by the generator.</p>
 
@@ -290,7 +290,7 @@
 
       <section class="section">
         <h2>Reproducibility</h2>
-        <p>The project is intentionally build-system-light. The decoder and generator can be compiled directly with a C++23 compiler.</p>
+        <p>The project is intentionally build-system-light. The decoder can be compiled directly with a C++23 compiler.</p>
 
         <pre><code>git clone --recursive https://github.com/pankajj6/pcap_feed_decoder.git
 cd pcap_feed_decoder</code></pre>
@@ -382,39 +382,98 @@ cd pcap_feed_decoder</code></pre>
         <p>The <code>base_lob_engine</code> directory is maintained as a separate repository and included here as a Git submodule.</p>
       </section>
 
-      <section class="section">
-        <h2>Scope</h2>
-        <ul>
-          <li>NASDAQ TotalView-ITCH 5.0 message extraction and decoding</li>
-          <li>PCAP ingestion and MoldUDP64 payload extraction</li>
-          <li>MoldUDP64 session and sequence-number management</li>
-          <li>bounded out-of-order packet buffering</li>
-          <li>Level-3 limit order-book reconstruction</li>
-          <li>direct reconstruction through <code>itch_*</code> interfaces</li>
-          <li>Event-based reconstruction through <code>reconstruct_market_state()</code></li>
-          <li><code>LobState</code> support for derived market-state statistics</li>
-          <li>packet-level latency instrumentation</li>
-          <li>compile-time single-stock benchmarking with <code>SPECIFIC_STOCK_LOCATE</code></li>
-          <li>reproducible PCAP generation from public NASDAQ ITCH binary data</li>
-          <li>optional verbose decoded-message output</li>
-        </ul>
-        <p>The current generator models packet-size variation and clustering. It does not reproduce the exact packet boundaries of a historical capture and does not currently inject packet loss or out-of-order sequences.</p>
-      </section>
+      
+<section class="section">
+  <h2>Scope</h2>
 
-      <section class="section research-direction">
-        <h2>Research direction</h2>
-        <p>The current implementation carries the feed through the complete path to Level-3 reconstruction, providing an end-to-end representation of market state produced from the captured exchange feed.</p>
-        <p>The longer-term direction is to establish the decoder as a dedicated market-data ingestion layer, extracting and decoding exchange messages into clean binary streams for downstream reconstruction, feature extraction, and research systems.</p>
-        <div class="pipeline">
-          <div>Network capture</div>
-          <span>→</span>
-          <div>PCAP Feed Decoder</div>
-          <span>→</span>
-          <div>Clean binary<br>message stream</div>
-          <span>→</span>
-          <div class="pipeline-wide">Reconstruction · feature extraction · market-microstructure research</div>
-        </div>
-      </section>
+  <h3>Core decoder capabilities</h3>
+  <ul>
+    <li>NASDAQ TotalView-ITCH 5.0 message extraction and decoding</li>
+    <li>PCAP ingestion and MoldUDP64 payload extraction</li>
+    <li>MoldUDP64 session and sequence-number management</li>
+    <li>Bounded out-of-order packet buffering</li>
+    <li>Level-3 limit order-book reconstruction</li>
+    <li>Direct reconstruction through <code>itch_*</code> interfaces</li>
+    <li>Event-based reconstruction through <code>reconstruct_market_state()</code></li>
+    <li><code>LobState</code> support for derived market-state statistics</li>
+    <li>Packet-level latency instrumentation</li>
+    <li>Compile-time single-stock benchmarking with <code>SPECIFIC_STOCK_LOCATE</code></li>
+    <li>Optional verbose decoded-message output</li>
+  </ul>
+
+  <h3>Supporting utility</h3>
+  <ul>
+    <li>Reproducible PCAP generation from publicly available NASDAQ ITCH binary data for testing and benchmarking</li>
+  </ul>
+
+  <p>
+    The current generator models packet-size variation and clustering.
+    It does not reproduce the exact packet boundaries of a historical
+    capture and does not currently inject packet loss or out-of-order
+    sequences.
+  </p>
+</section>
+
+      
+<section class="section research-direction">
+  <h2>Research direction</h2>
+
+  <p>
+    The current implementation provides a direct processing path from
+    captured NASDAQ ITCH network traffic to Level-3 market-state
+    reconstruction. It handles packet ingestion, session sequencing,
+    message decoding and continuous order-book maintenance, allowing
+    researchers to work directly from PCAP files.
+  </p>
+
+  <p>
+    Because the Level-3 order book is already reconstructed and
+    maintained within the processing pipeline, researchers can build
+    their own market-microstructure analysis and feature-extraction
+    logic directly on top of the existing codebase. This allows them
+    to work with reconstructed order-book state without independently
+    implementing the underlying packet parsing, message decoding and
+    order-book maintenance machinery. The existing interfaces and
+    codebase provide a foundation that can be explored and extended
+    for custom research requirements.
+  </p>
+
+  <p>
+    This direct processing approach also provides an alternative for
+    researchers working under storage constraints, or for workflows
+    where persisting an intermediate normalized ITCH dataset would
+    introduce additional storage overhead. They can process the
+    original PCAP captures and develop their research logic directly
+    within the reconstruction pipeline, without first generating
+    and storing a separate normalized message dataset.
+  </p>
+
+  <p>
+    Future extensions will broaden the available output interfaces.
+    One planned direction is the ability to write decoded and
+    normalized ITCH message streams to persistent files, supporting
+    reusable research datasets, downstream feature extraction and
+    independent reconstruction workflows.
+  </p>
+
+  <div class="pipeline">
+    <div>Network capture</div>
+    <span>→</span>
+    <div>PCAP Feed Decoder</div>
+    <span>→</span>
+    <div>Maintained Level-3<br>order book</div>
+    <span>→</span>
+    <div>Custom research<br>and feature extraction</div>
+  </div>
+
+  <p>
+    <strong>
+      Additional future output: normalized ITCH messages
+      <span>→</span>
+      persistent research datasets and independent downstream processing
+    </strong>
+  </p>
+</section>
 
       <section class="section related">
         <h2>Related infrastructure</h2>
