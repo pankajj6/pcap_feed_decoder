@@ -85,32 +85,36 @@ to be coupled directly to packet-to-book reconstruction.
 # Architecture
 
 ``` mermaid
+
 flowchart TD
 
-    A["NASDAQ ITCH Binary"]
-        --> B["pcap_generator"]
+    A["Existing NASDAQ ITCH PCAP"]
+        --> D["pcap_decoder"]
 
-    B --> C["PCAP"]
+    B["Historical Length-Prefixed ITCH Binary"]
+        -. "Optional input generation" .-> C["pcap_generator"]
 
-    C --> D["pcap_decoder"]
+    C --> E["Generated PCAP"]
+    E --> D
 
-    D --> E["Packet Ingestion / MoldUDP64 Sequencing"]
-    E --> F["ITCH 5.0 Decoding"]
+    D --> F["Packet Ingestion / MoldUDP64 Sequencing"]
+    F --> G["ITCH 5.0 Decoding"]
 
-    F --> G{"Decode / Benchmark Path"}
+    G --> H{"Decode / Processing Path"}
 
-    G --> H["Parser Benchmark"]
-    G --> I["Direct Reconstruction"]
-    G --> J["MarketState Reconstruction"]
+    H --> I["Parser Benchmark"]
+    H --> J["Direct Reconstruction"]
+    H --> K["MarketState Reconstruction"]
 
-    H --> K["Decoded ITCH Messages"]
+    I --> L["Decoded ITCH Messages"]
 
-    I --> L["BaseLOBEngine"]
-    J --> M["Event"]
-    M --> N["reconstruct_market_state()"]
-    N --> L
+    J --> M["BaseLOBEngine"]
+    K --> N["Event"]
+    N --> O["reconstruct_market_state()"]
+    O --> M
 
-    L --> O["Level-3 Limit Order Book"]
+    M --> P["In-Memory Level-3 Limit Order Books"]
+
 ```
 
 The decoder processes the PCAP in several layers:
