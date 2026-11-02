@@ -133,9 +133,7 @@ The decoder processes the PCAP in several layers:
 
 4.  **Optional downstream processing**
 
-    Decoded messages can either stop at the parser/decoding layer for
-    benchmarking or be passed into one of the Level-3 reconstruction
-    paths.
+    Decoded messages can stop at the parser benchmark or continue into one of the supported Level-3 reconstruction paths. Both reconstruction paths apply decoded exchange events to maintain Level-3 order-book state directly in memory.
 
 The decoder also contains bounded out-of-order handling. Packets that
 are ahead of the expected sequence number are temporarily retained and
@@ -248,16 +246,11 @@ the full set of active symbols.
 
 ## Why a PCAP Generator?
 
-NASDAQ publicly distributes historical TotalView-ITCH data as
-length-prefixed ITCH binary files rather than the original network
-packet captures.
+NASDAQ publicly distributes historical TotalView-ITCH data as length-prefixed ITCH binary files rather than the original network packet captures.
 
-These files contain the actual historical ITCH messages, but not the
-network framing that surrounds those messages when the feed is
-transmitted.
+The repository includes an optional `pcap_generator` for users who do not have an original NASDAQ ITCH PCAP but want to explore the decoder, experiment with its packet-processing pipeline, or run reproducible tests and benchmarks.
 
-`pcap_generator` reconstructs this missing framing and writes the result
-as a PCAP file that can be consumed directly by `pcap_decoder`.
+The generator reconstructs the missing network framing around real historical ITCH messages and writes the result as a PCAP file that can be consumed directly by `pcap_decoder`.
 
 The generator constructs:
 
@@ -502,7 +495,13 @@ The resulting executable accepts a PCAP file:
 ./pcap_decoder <pcap_file>
 ```
 
-For example:
+For example, if you already have a capture:
+
+``` bash
+./pcap_decoder /path/to/itch_capture.pcap
+```
+
+The generated capture used in the repository's benchmark examples can also be processed:
 
 ``` bash
 ./pcap_decoder data/generated/01302020.pcap
