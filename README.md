@@ -12,10 +12,7 @@ NASDAQ ITCH 5.0 messages. It can be used either to benchmark
 packet/message decoding independently or to reconstruct Level-3 order
 books across the symbols present in the feed.
 
-The repository also includes a PCAP generator for creating packet
-captures from publicly available NASDAQ ITCH binary files. The generator
-is optional: if a suitable ITCH PCAP is already available, it can be
-passed directly to `pcap_decoder`.
+The decoder can be used directly with an existing NASDAQ ITCH PCAP. An optional `pcap_generator` is also included for users who do not have an original packet captures but want to explore the decoder, experiment with its packet-processing pipeline, or run reproducible tests and benchmarks. It constructs PCAP inputs using real historical ITCH messages from publicly available length-prefixed data.
 
 The project is an independent infrastructure developed and owned by
 Pankaj Jat, utilized by **XAD (Microstructure Automata Dynamics)** under
