@@ -34,6 +34,7 @@ deterministic simulation.
 - [Usage](#usage)
 - [Repository Structure](#repository-structure)
 - [Features](#features)
+- [Research direction](#research-direction)
 - [Related Projects](#related-projects)
 
 ------------------------------------------------------------------------
@@ -680,6 +681,8 @@ not required. The PCAP can be passed directly to `pcap_decoder`.
 
 # Features
 
+## Core decoder capabilities
+
 - NASDAQ TotalView-ITCH 5.0 message extraction and decoding
 - PCAP ingestion and MoldUDP64 payload extraction
 - MoldUDP64 session and sequence-number management
@@ -690,10 +693,30 @@ not required. The PCAP can be passed directly to `pcap_decoder`.
 - `LobState` support for derived market-state statistics
 - Separate parser and reconstruction benchmarks
 - Compile-time single-stock benchmarking with `SPECIFIC_STOCK_LOCATE`
-- Reproducible PCAP generation from public NASDAQ ITCH binary data
 - Optional verbose decoded-message output
 
+## Supporting utility
+
+- Reproducible PCAP generation from publicly available NASDAQ ITCH binary data for exploration, testing, and benchmarking.
 ------------------------------------------------------------------------
+
+# Research direction 
+
+The current implementation provides a direct processing path from captured NASDAQ ITCH network traffic to Level-3 market-state reconstruction. It handles packet ingestion, session sequencing, message decoding and continuous order-book maintenance, allowing researchers to work directly from PCAP files.
+
+Because the Level-3 order book is already reconstructed and maintained within the processing pipeline, researchers can build their own market-microstructure analysis and feature-extraction logic directly on top of the existing codebase. This allows them to work with reconstructed order-book state without independently implementing the underlying packet parsing, message decoding and order-book maintenance machinery.
+
+This direct processing approach also provides an alternative for researchers working under storage constraints, or for workflows where persisting an intermediate normalized ITCH dataset would introduce additional storage overhead. They can process the original PCAP captures and develop their research logic directly within the reconstruction pipeline, without first generating and storing a separate normalized message dataset.
+
+Future extensions will broaden the available output interfaces. One planned direction is the ability to write decoded and normalized ITCH message streams to persistent files, supporting reusable research datasets, downstream feature extraction and independent reconstruction workflows.
+
+The current processing path can be summarized as:
+
+
+
+------------------------------------------------------------------------
+
+
 
 # Related Projects
 
