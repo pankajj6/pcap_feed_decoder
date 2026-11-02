@@ -712,7 +712,10 @@ Future extensions will broaden the available output interfaces. One planned dire
 
 The current processing path can be summarized as:
 
+**Network capture** → **PCAP Feed Decoder** → **Maintained Level-3 order book** → **Custom research and feature extraction**
 
+
+**Planned future output:** Normalized ITCH messages → persistent research datasets and independent downstream processing.
 
 ------------------------------------------------------------------------
 
