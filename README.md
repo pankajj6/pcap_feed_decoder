@@ -41,44 +41,32 @@ deterministic simulation.
 
 ## Why this Project
 
-NASDAQ TotalView-ITCH 5.0 market data is commonly available as
-historical ITCH binary files, while packet-oriented applications consume
-the messages within captured network packets.
+Working with NASDAQ TotalView-ITCH 5.0 packet captures requires handling the complete path from network packets to exchange-level market state. This involves packet ingestion, MoldUDP64 session and sequence management, ITCH message extraction and decoding, and ultimately applying the decoded events to maintain the limit order book.
 
-This project provides a packet-level processing path for NASDAQ ITCH 5.0
-PCAP data. It is intended to support both high-throughput packet/message
-decoding benchmarks and Level-3 order-book reconstruction from real
-market-data captures.
+**PCAP Feed Decoder provides this processing infrastructure directly for captured NASDAQ ITCH 5.0 traffic.**
 
-The decoder currently provides:
+The decoder processes existing PCAP files and supports Level-3 order-book reconstruction directly in memory across the instruments present in the feed. Researchers can move from captured network traffic to maintained order books without first extracting and persisting a separate normalized ITCH dataset or building the underlying packet-processing and reconstruction machinery themselves.
 
-- PCAP ingestion and MoldUDP64 payload extraction
-- MoldUDP64 session and sequence-number management
-- Bounded out-of-order packet buffering
-- NASDAQ TotalView-ITCH 5.0 message extraction and decoding
-- Field extraction and byte-order conversion
-- Level-3 limit order book reconstruction
-- Separate benchmarking of message decoding and full book reconstruction
-- Per-stock benchmarking through a compile-time stock-locate filter
+This provides an alternative for research and engineering workflows where users want to work directly from their captures. Rather than separating network decoding, message normalization, storage, order-book reconstruction, and research logic into independent stages, they can build their analysis and feature-extraction logic on top of the order books maintained by the decoder itself.
 
-The decoder can be used directly with an existing PCAP capture. The
-included `pcap_generator` is an optional utility for cases where a
-packet capture is not available.
+This approach can also be useful where retaining original captures is important but generating and storing an additional normalized dataset is unnecessary or impractical. The project does not replace normalized-data workflows; it provides a direct-processing alternative for users whose requirements favor working from the original packet captures.
 
-NASDAQ's public historical ITCH data is distributed as length-prefixed
-ITCH binary streams rather than original packet captures. The generator
-uses those real historical ITCH messages to construct PCAP files with
-the framing required by the decoder. This makes it possible to benchmark
-and test packet-level processing using publicly available data without
-requiring access to a proprietary packet capture.
+The infrastructure is intended for researchers and engineering teams working with exchange packet captures, including academic research groups and industry practitioners who need to decode and reconstruct market state without implementing the complete processing pipeline themselves.
 
-The current implementation focuses on deterministic decoding and Level-3
-reconstruction. The packet-decoding layer is also intended to provide a
-foundation for separating raw feed processing from downstream
-market-data processing as the project develops. This can include
-producing clean decoded ITCH data for independent research and
-feature-extraction pipelines rather than requiring all downstream work
-to be coupled directly to packet-to-book reconstruction.
+The current implementation provides three primary capabilities:
+
+### Packet ingestion and sequencing
+Reads captured packets, extracts MoldUDP64 payloads, manages session and sequence state, and handles packets arriving ahead of the expected sequence through bounded buffering.
+
+### Exchange-message decoding
+Extracts length-prefixed NASDAQ TotalView-ITCH 5.0 records from the packet stream, decodes their fields, and performs the required byte-order conversions.
+
+### Level-3 market-state reconstruction
+Routes decoded exchange messages through the supported reconstruction paths, maintaining order-level limit order books directly in memory using the underlying BaseLOBEngine.
+
+The decoder is specifically intended for packet captures. Researchers who already have length-prefixed historical ITCH binary data and only need to parse that representation can use a parser designed for that input directly; converting such data into PCAP solely to use this project is generally unnecessary.
+
+An optional `pcap_generator` is also included for users who want to evaluate or test the decoder but do not have an original NASDAQ ITCH PCAP. It constructs packet framing around real historical ITCH messages from publicly available data, providing inputs for exploration and reproducible benchmarks.
 
 ------------------------------------------------------------------------
 
